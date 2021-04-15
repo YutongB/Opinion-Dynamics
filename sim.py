@@ -218,7 +218,7 @@ def graph_set_prior_distr(g, distr):
         row i corresponding to the prior distribution for person i, x_i(t, θ)
         col j corresponding to the prior distribution evaluated at θ = 0.05 * j
     """
-    return g.vp.prior_distr.set_2d_array(distr)
+    return g.vp.prior_distr.set_2d_array(distr.T)
 
 def friendliness_mat(g):
     # get the friendliness matrix
@@ -280,10 +280,11 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     distr = normalize_distr(distr)
 
     # required for indirect array access of vector
-    g.vp.prior_distr.set_2d_array(distr.T)
+    # g.vp.prior_distr.set_2d_array(distr.T)
+    return distr
 
 
-def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -294,7 +295,7 @@ def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
     toss = toss_coins(bias=true_bias)
 
     # update the opinions of each agent according to Bayes' Theorem (observe coin toss)
-    prior_distr = graph_get_prior_distr(g)
+    # prior_distr1 = graph_get_prior_distr(g)
     likelihood = coin_toss_likelihood() # (eqn 2)
     posterior_distr = likelihood[toss] * prior_distr  # (eqn 1)
     posterior_distr = normalize_distr(posterior_distr)
@@ -311,7 +312,7 @@ def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
 
     next_prior_distr = normalize_distr(bayes_update)
 
-    graph_set_prior_distr(g, next_prior_distr.T)
+    # graph_set_prior_distr(g, next_prior_distr.T)
 
     g.gp.step += 1
 
@@ -321,7 +322,7 @@ def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
 
 
 SimResults = namedtuple("SimulationResults",
-                        ("steps", "asymptotic", "coins", "mean_std"))
+                        ("steps", "asymptotic", "coins", "mean_std", "distr", "initial_distr"))
 
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
@@ -330,57 +331,57 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
-    init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
+    initial_distr = init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
 
     coins_list = []
     mean_std_list = []
     iters_asymptotic_learning = 0
+    prior_distr = initial_distr.copy()
 
     # steps 2-3 of Probabilistic automaton, until t = T
     for _t in range(int(max_steps)):
         coins, posterior = step_simulation(
-            g, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon)
-
-        if np.all(np.any(posterior > 0.9, axis=1)):
-            iters_asymptotic_learning += 1
-        else:
-            iters_asymptotic_learning = 0
+            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon)
 
         mean_std_list.append(mean_std_distr(posterior))
         coins_list.append(coins)
 
+        if np.all(np.any(posterior > 0.99, axis=1)):
+            iters_asymptotic_learning += 1
+        else:
+            iters_asymptotic_learning = 0
+
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
             break
 
+        prior_distr = posterior.copy()
+
     return SimResults(len(coins_list),
                       iters_asymptotic_learning == asymptotic_learning_max_iters,
-                      coins_list, mean_std_list)
+                      coins_list, mean_std_list, 
+                      prior_distr, initial_distr)
 
 
 # %%
 g = pair_of_allies()
 init_simulation(g, prior_mean=np.array((0.25, 0.75)), prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
 
-
-# %%
-plot_distr(next_prior_distr)
-
-
-# %%
-np.sum(posterior_distr, axis=1)
-
 # %%
 import cProfile
 
 with cProfile.Profile() as pr:
     seed(42)
-    g = pair_of_allies()
-    steps, asymptotic, coins, mean_std = run_simulation(g, 
-                                                        max_steps=2000,
-                                                        prior_mean=np.array((0.25, 0.75)), 
-                                                        prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+    g = pair_of_opponents()
+    res = run_simulation(g, 
+                        max_steps=2000,
+                        prior_mean=np.array((0.25, 0.75)), 
+                        prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+    steps, asymptotic, coins, mean_std, distr, initial_distr = res
 mean_std = np.array(mean_std)
 steps, asymptotic
+
+# 0.530 seconds (677 iterations) without graphtool storing priors
+# 3.254 seconds (677 iterations) with graphtool
 
 # %%
 pr.print_stats()
@@ -390,15 +391,18 @@ pr.print_stats()
 plt.plot(np.cumsum(coins))
 
 # %%
+# mean
 plt.plot(mean_std[:,:,0], alpha=0.5)
 
 # %%
+# stddev
 plt.plot(mean_std[:,:,1], alpha=0.5)
 
 # %%
-plot_graph_distr(g)
-# mean_std_distr( graph_get_prior_distr(g))
+# initial distribution
+plot_distr(initial_distr)
 
 # %%
-graph_get_prior_distr(g)
-# %%
+# final distribution
+plot_distr(distr)
+
