@@ -283,7 +283,7 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     g.vp.prior_distr.set_2d_array(distr.T)
 
 
-def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e10):
+def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -296,9 +296,8 @@ def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e10):
     # update the opinions of each agent according to Bayes' Theorem (observe coin toss)
     prior_distr = graph_get_prior_distr(g)
     likelihood = coin_toss_likelihood() # (eqn 2)
-    norm_const = np.sum(likelihood @ prior_distr.T, axis=1)[:, None]
-    # Fix some broadcasting issue https://stackoverflow.com/questions/19602187/numpy-divide-each-row-by-a-vector-element
-    posterior_distr = likelihood[toss] * prior_distr / norm_const  # (eqn 1)
+    posterior_distr = likelihood[toss] * prior_distr  # (eqn 1)
+    posterior_distr = normalize_distr(posterior_distr)
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
@@ -308,11 +307,15 @@ def step_simulation(g, true_bias=0.5, learning_rate=0.25, epsilon=1e10):
 
     bayes_update_max_RHS = posterior_distr + avg_dist_belief * learning_rate
     bayes_update_max_LHS = np.broadcast_to(epsilon, (n, 21))
-    bayes_update = np.amax(np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=1)
+    bayes_update = np.amax(np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
 
     next_prior_distr = normalize_distr(bayes_update)
 
-    graph_set_prior_distr(g, next_prior_distr)
+    graph_set_prior_distr(g, next_prior_distr.T)
+
+    g.gp.step += 1
+
+    #plot_graph_distr(g)
 
     return toss, next_prior_distr
 
@@ -323,7 +326,7 @@ SimResults = namedtuple("SimulationResults",
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
-                   true_bias=0.5, learning_rate=0.25, epsilon=1e10):
+                   true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -338,7 +341,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         coins, posterior = step_simulation(
             g, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon)
 
-        if np.all(np.any(posterior > 0.99, axis=1), axis=0):
+        if np.all(np.any(posterior > 0.9, axis=1)):
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
@@ -346,35 +349,56 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         mean_std_list.append(mean_std_distr(posterior))
         coins_list.append(coins)
 
+        if iters_asymptotic_learning == asymptotic_learning_max_iters:
+            break
+
     return SimResults(len(coins_list),
                       iters_asymptotic_learning == asymptotic_learning_max_iters,
                       coins_list, mean_std_list)
 
 
 # %%
-seed(42)
 g = pair_of_allies()
-steps, asymptotic, coins, mean_std = run_simulation(g, 
-                                                    prior_mean=np.array((0.25, 0.75)), 
-                                                    prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+init_simulation(g, prior_mean=np.array((0.25, 0.75)), prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+
+
+# %%
+plot_distr(next_prior_distr)
+
+
+# %%
+np.sum(posterior_distr, axis=1)
+
+# %%
+import cProfile
+
+with cProfile.Profile() as pr:
+    seed(42)
+    g = pair_of_allies()
+    steps, asymptotic, coins, mean_std = run_simulation(g, 
+                                                        max_steps=2000,
+                                                        prior_mean=np.array((0.25, 0.75)), 
+                                                        prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
 mean_std = np.array(mean_std)
 steps, asymptotic
+
+# %%
+pr.print_stats()
+
 
 # %%
 plt.plot(np.cumsum(coins))
 
 # %%
-plt.plot(mean_std[:100,0,:])
+plt.plot(mean_std[:,:,0], alpha=0.5)
 
 # %%
-plt.plot(mean_std[:100,1,:])
-
-# %%
-mean_std[:100,:,:]
+plt.plot(mean_std[:,:,1], alpha=0.5)
 
 # %%
 plot_graph_distr(g)
 # mean_std_distr( graph_get_prior_distr(g))
 
 # %%
-
+graph_get_prior_distr(g)
+# %%
