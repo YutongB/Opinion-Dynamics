@@ -10,6 +10,7 @@ import numpy as np
 import graph_tool.all as gt
 import matplotlib.pyplot as plt
 from IPython import get_ipython
+import cProfile
 
 # %%
 # The import order is important
@@ -42,6 +43,8 @@ def create_model_graph():
     g.graph_properties['step'] = g.new_graph_property('int')
 
     return g
+
+
 
 
 # %%
@@ -88,6 +91,36 @@ def pair_of_opponents():
     v1, v2 = g.add_vertex(2)
     add_enemies(g, v1, v2)
     return g
+
+def complete_graph_of_friends(n):
+    g = create_model_graph()
+    v = g.add_vertex()
+    vlist = [v]
+
+    for _i in range(1, n):
+        u = g.add_vertex()
+        for v in vlist:
+            add_friends(g, u, v)
+        vlist.append(u)
+
+    return g
+
+
+def complete_graph_of_enemies(n):
+    g = create_model_graph()
+    v = g.add_vertex()
+    vlist = [v]
+
+    for _i in range(1, n):
+        u = g.add_vertex()
+        for v in vlist:
+            add_friends(g, u, v)
+        vlist.append(u)
+
+    return g
+
+# %%
+draw_graph(complete_graph_of_friends(10))
 
 
 # %%
@@ -267,6 +300,12 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
 
     g.gp.step = 0
 
+    if prior_mean is not None and prior_mean.shape[0] != n:
+        raise Exception("Invalid prior mean entered, g has dimension", n)
+    if prior_sd is not None and prior_sd.shape[0] != n:
+        raise Exception("Invalid prior sd entered, g has dimension", n)
+
+
     # randomly generate prior and prior sd if no args given
     if prior_mean is None or prior_sd is None:
         prior_mean, prior_sd = generate_priors(n)
@@ -367,21 +406,31 @@ g = pair_of_allies()
 init_simulation(g, prior_mean=np.array((0.25, 0.75)), prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
 
 # %%
-import cProfile
+%%time
+g = complete_graph_of_enemies(100)
 
 with cProfile.Profile() as pr:
     seed(42)
-    g = pair_of_opponents()
     res = run_simulation(g, 
                         max_steps=2000,
-                        prior_mean=np.array((0.25, 0.75)), 
-                        prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+  #                      prior_mean=np.array((0.25, 0.75)), 
+  #                      prior_sd=np.array([fwhm_to_sd(0.4)] * 2)
+                        )
     steps, asymptotic, coins, mean_std, distr, initial_distr = res
 mean_std = np.array(mean_std)
 steps, asymptotic
 
 # 0.530 seconds (677 iterations) without graphtool storing priors
 # 3.254 seconds (677 iterations) with graphtool
+
+# %%
+g = complete_graph_of_friends(100)
+
+init_simulation(g)
+
+# %%
+g.vp.prior_mean.a
+
 
 # %%
 pr.print_stats()
@@ -406,3 +455,5 @@ plot_distr(initial_distr)
 # final distribution
 plot_distr(distr)
 
+
+# %%
