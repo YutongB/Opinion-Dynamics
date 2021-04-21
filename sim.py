@@ -114,7 +114,7 @@ def complete_graph_of_enemies(n):
     for _i in range(1, n):
         u = g.add_vertex()
         for v in vlist:
-            add_friends(g, u, v)
+            add_enemies(g, u, v)
         vlist.append(u)
 
     return g
@@ -407,14 +407,14 @@ init_simulation(g, prior_mean=np.array((0.25, 0.75)), prior_sd=np.array([fwhm_to
 
 # %%
 %%time
-g = complete_graph_of_enemies(100)
+g = complete_graph_of_enemies(2)
 
 with cProfile.Profile() as pr:
     seed(42)
     res = run_simulation(g, 
                         max_steps=2000,
-  #                      prior_mean=np.array((0.25, 0.75)), 
-  #                      prior_sd=np.array([fwhm_to_sd(0.4)] * 2)
+                       prior_mean=np.array((0.25, 0.75)), 
+                       prior_sd=np.array([fwhm_to_sd(0.4)] * 2)
                         )
     steps, asymptotic, coins, mean_std, distr, initial_distr = res
 mean_std = np.array(mean_std)
