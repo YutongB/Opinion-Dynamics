@@ -1,30 +1,51 @@
-# To add a new cell, type '# %%'
-# To add a new markdown cell, type '# %% [markdown]'
-# %%
 from collections import namedtuple
 from functools import cache
-from scipy.stats import norm
-import scipy
-from numpy.random import f, seed, random, randint, uniform
+from scipy.stats import norm, binom
+from numpy.random import seed, uniform
 import numpy as np
 import graph_tool.all as gt
 import matplotlib.pyplot as plt
-from IPython import get_ipython
-import cProfile
+from random import choice
 
-# %%
-# The import order is important
-import matplotlib as mpl
-mpl.use('cairo')
-get_ipython().run_line_magic('matplotlib', 'inline')
+from rich.progress import track
+
+import json
+import os
+import signal
+from threading import Event
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
+def make_progress():
+    return Progress(
+        TextColumn("{task.description}", justify="right"),
+        BarColumn(bar_width=15),
+        "[progress.percentage]{task.completed}",
+        "/",
+        "{task.total}",
+        "•",
+        TimeElapsedColumn(),
+        "/",
+        TimeRemainingColumn(),
+        refresh_per_second=5,
+        # transient=True,
+    )
 
 
-# %%
+# TODO: Progress bar properly: https://github.com/willmcgugan/rich/blob/master/examples/downloader.py
 
 
-# %%
-def create_model_graph():
-    g = gt.Graph(directed=False)
+def create_model_graph(g=None):
+    if g is None:
+        g = gt.Graph(directed=False)
     # nodes represent people
     # edges represent 'knowing' relationships of people
 
@@ -45,9 +66,12 @@ def create_model_graph():
     return g
 
 
+def create_random_graph():
+    pass
+    # TODO: generate complete graph
+    # https://graph-tool.skewed.de/static/doc/generation.html#graph_tool.generation.random_graph
 
 
-# %%
 def draw_graph(g, show_vertex_labels=False, width=150):
 
     edge_color_map = {-1: (1, 0, 0, 1), 1: (0, 1, 0, 1)}
@@ -60,7 +84,6 @@ def draw_graph(g, show_vertex_labels=False, width=150):
                   output_size=(width, width))
 
 
-# %%
 ADJ_FRIEND = 1
 ADJ_ENEMY = -1
 
@@ -92,7 +115,12 @@ def pair_of_opponents():
     add_enemies(g, v1, v2)
     return g
 
-def complete_graph_of_friends(n):
+# TODO: Random graph generation
+# TODO: argv
+# TODO: better progress bar
+
+
+def gen_complete_graph(n, generator):
     g = create_model_graph()
     v = g.add_vertex()
     vlist = [v]
@@ -100,37 +128,45 @@ def complete_graph_of_friends(n):
     for _i in range(1, n):
         u = g.add_vertex()
         for v in vlist:
-            add_friends(g, u, v)
+            add_relationship(g, u, v, generator())
         vlist.append(u)
 
     return g
+
+
+def gen_relationship_binary():
+    return choice([ADJ_ENEMY, ADJ_FRIEND])
+
+
+def gen_relationship_uniform():
+    return uniform(ADJ_ENEMY, ADJ_FRIEND)
+
+
+def complete_graph_of_friends(n):
+    return gen_complete_graph(n, lambda: ADJ_FRIEND)
 
 
 def complete_graph_of_enemies(n):
-    g = create_model_graph()
-    v = g.add_vertex()
-    vlist = [v]
-
-    for _i in range(1, n):
-        u = g.add_vertex()
-        for v in vlist:
-            add_enemies(g, u, v)
-        vlist.append(u)
-
-    return g
-
-# %%
-draw_graph(complete_graph_of_friends(10))
+    return gen_complete_graph(n, lambda: ADJ_ENEMY)
 
 
-# %%
+def complete_graph_of_random(n):
+    return gen_complete_graph(n, gen_relationship_binary)
+
+
+def complete_graph_of_random_uniform(n):
+    return gen_complete_graph(n, gen_relationship_uniform)
+
+
 HEADS = 1  # "success" is for the coin to land heads
 TAILS = 0
 
 BIAS_SAMPLES = 21
 
-def toss_coins(bias=0.5, n=1):
-    return np.random.binomial(n, bias)
+
+def toss_coins(bias=0.5, num_coins=1):
+    return np.random.binomial(num_coins, bias)
+
 
 @cache
 def bias():
@@ -138,10 +174,12 @@ def bias():
     # values  (0.00, 0.05, ..., 1.00)
     return np.linspace(0, 1, BIAS_SAMPLES)
 
-@cache
+
 def bias_mat(num_priors):
-    # generate matrix of num_prior rows and
-    # 21 columns (bias() for each row of the matrix)
+    """
+    generate matrix of num_prior rows and
+    21 columns (bias() for each row of the matrix)
+    """
     return np.tile(np.linspace(0, 1, BIAS_SAMPLES), (num_priors, 1))
 
 
@@ -174,16 +212,16 @@ def normalize_distr(distr):
     return distr / norm[:, None]
 
 
-# %%
-@cache
-def coin_toss_likelihood():
+def coin_toss_likelihood(num_heads, num_coins=1):
     """
     coin toss likelihood - encodes the probability of observing a heads, given bias θ
-    only 2 possible outcomes in a coin toss:
+
+    For 1 coin toss: only 2 possible outcomes in a coin toss:
     row 0 (tails) : 1 - θ
     row 1 (heads) : θ 
     """
-    return np.array((1 - bias(), bias()))
+    return binom.pmf(num_heads, num_coins, bias())
+    # return np.array((1 - bias(), bias()))
 
 
 def normalising_constant(likelihood, graph_prior_distr):
@@ -191,18 +229,22 @@ def normalising_constant(likelihood, graph_prior_distr):
     value i is normalising constant for node / person i
     sum_θ{  P(S(T) | θ) * x_i (t, θ) }
     """
+    # @ is matrix multiplication
     return np.sum(likelihood @ graph_prior_distr.T, axis=1)
 
 
 def mean_std_distr(distrs):
     n = distrs.shape[0]
     mean = np.sum(distrs * bias_mat(n), axis=1)
-    std = np.sqrt(np.sum(np.square(bias_mat(n) - mean[:,None]) * distrs, axis=1))
+    std = np.sqrt(
+        np.sum(np.square(bias_mat(n) - mean[:, None]) * distrs, axis=1))
     return np.array([mean, std]).T
+
 
 def print_mean_std(mean_std):
     for i, person in enumerate(mean_std):
         print(i, "mean=", person[0], "std=", person[1])
+
 
 def plot_distr(distr, title=None):
     fig, ax = plt.subplots()
@@ -221,7 +263,7 @@ def plot_distr(distr, title=None):
 
 def plot_graph_distr(g):
     fig, ax = plt.subplots()
-    
+
     print_mean_std(mean_std_distr(graph_get_prior_distr(g)))
 
     for v, distr in g.iter_vertices([g.vp.prior_distr]):
@@ -235,7 +277,6 @@ def plot_graph_distr(g):
     plt.tight_layout()
 
 
-# %%
 def graph_get_prior_distr(g):
     """
     Returns matrix: 
@@ -252,6 +293,7 @@ def graph_set_prior_distr(g, distr):
         col j corresponding to the prior distribution evaluated at θ = 0.05 * j
     """
     return g.vp.prior_distr.set_2d_array(distr.T)
+
 
 def friendliness_mat(g):
     # get the friendliness matrix
@@ -283,17 +325,7 @@ def avg_dist_in_belief(g, posterior_distr):
     avg_dist_in_belief = summation * divisor[:, None]
     return avg_dist_in_belief
 
-# %%
-    # TEST VERSION!
-    # i = 1
-    # j = 0
-    # del_x1 = -(posterior_distr[j] - posterior_distr[i])
-    # del_x0 = -(posterior_distr[i] - posterior_distr[j])
-    # res = np.array([del_x0, del_x1])
-    # res
 
-
-# %%
 # mean_range=(0.0, 1.0), fwhm_range=(0.2, 0.8)
 def init_simulation(g, prior_mean=None, prior_sd=None):
     n = g.num_vertices(ignore_filter=True)
@@ -304,7 +336,6 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
         raise Exception("Invalid prior mean entered, g has dimension", n)
     if prior_sd is not None and prior_sd.shape[0] != n:
         raise Exception("Invalid prior sd entered, g has dimension", n)
-
 
     # randomly generate prior and prior sd if no args given
     if prior_mean is None or prior_sd is None:
@@ -323,7 +354,7 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     return distr
 
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10, num_coins=10):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -331,13 +362,13 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
     n = g.num_vertices(ignore_filter=True)
 
     # simulate an independent coin toss
-    toss = toss_coins(bias=true_bias)
+    toss = toss_coins(bias=true_bias, num_coins=num_coins)
 
     # update the opinions of each agent according to Bayes' Theorem (observe coin toss)
     # prior_distr1 = graph_get_prior_distr(g)
-    likelihood = coin_toss_likelihood() # (eqn 2)
-    posterior_distr = likelihood[toss] * prior_distr  # (eqn 1)
-    posterior_distr = normalize_distr(posterior_distr)
+    likelihood = coin_toss_likelihood(
+        num_heads=toss, num_coins=num_coins)  # (eqn 2)
+    posterior_distr = normalize_distr(likelihood * prior_distr)  # (eqn 1)
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
@@ -347,7 +378,8 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
 
     bayes_update_max_RHS = posterior_distr + avg_dist_belief * learning_rate
     bayes_update_max_LHS = np.broadcast_to(epsilon, (n, 21))
-    bayes_update = np.amax(np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
+    bayes_update = np.amax(
+        np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
 
     next_prior_distr = normalize_distr(bayes_update)
 
@@ -355,32 +387,57 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
 
     g.gp.step += 1
 
-    #plot_graph_distr(g)
+    # plot_graph_distr(g)
 
     return toss, next_prior_distr
 
+done_event = Event()
+
+
+def handle_sigint(signum, frame):
+    done_event.set()
+
+
+signal.signal(signal.SIGINT, handle_sigint)
+
+
 
 SimResults = namedtuple("SimulationResults",
-                        ("steps", "asymptotic", "coins", "mean_std", "distr", "initial_distr"))
+                        ("steps", "asymptotic", "coins", "mean_std", "final_distr", "initial_distr"))
 
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
-                   true_bias=0.5, learning_rate=0.25, epsilon=1e-10):
+                   true_bias=0.5, learning_rate=0.25, epsilon=1e-10,
+                   tosses_per_iteration=10, task_id=None, progress=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
-    initial_distr = init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
+    initial_distr = init_simulation(
+        g, prior_mean=prior_mean, prior_sd=prior_sd)
 
     coins_list = []
     mean_std_list = []
     iters_asymptotic_learning = 0
     prior_distr = initial_distr.copy()
 
+    max_steps = int(max_steps)
+
+    if progress is None:
+        progress = make_progress()
+
+    if task_id is None:
+        task_id = progress.add_task("Simulation", total=max_steps)
+    else:
+        progress.start_task(task_id)
+
+    progress.update(task_id, total=max_steps)
+
     # steps 2-3 of Probabilistic automaton, until t = T
-    for _t in range(int(max_steps)):
+    for i in range(max_steps):
         coins, posterior = step_simulation(
-            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon)
+            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon,
+            num_coins=tosses_per_iteration)
 
         mean_std_list.append(mean_std_distr(posterior))
         coins_list.append(coins)
@@ -390,70 +447,125 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         else:
             iters_asymptotic_learning = 0
 
+        progress.update(task_id, advance=1)
+
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
+            progress.update(task_id, total=i+1, completed=i+1)
             break
 
         prior_distr = posterior.copy()
 
-    return SimResults(len(coins_list),
-                      iters_asymptotic_learning == asymptotic_learning_max_iters,
-                      coins_list, mean_std_list, 
-                      prior_distr, initial_distr)
+        if done_event.is_set():
+            return
+
+    # progress.update(task_id, advance=1)
+    progress.update(task_id, visible=False)
+
+    return SimResults(steps=len(coins_list),
+                      asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
+                      coins=coins_list,
+                      mean_std=mean_std_list,
+                      final_distr=prior_distr,
+                      initial_distr=initial_distr)
 
 
-# %%
-g = pair_of_allies()
-init_simulation(g, prior_mean=np.array((0.25, 0.75)), prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
+def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
+    """
+    sim_params: dictionary of parameters to pass to run_simulation
+    eg: sim_params = { "max_steps": 100 }
+    """
 
-# %%
-%%time
-g = complete_graph_of_enemies(2)
+    # by default, do complete graph of 10 nodes with random
+    if gen_graph is None:
+        def gen_graph(): return complete_graph_of_random(10)
 
-with cProfile.Profile() as pr:
-    seed(42)
-    res = run_simulation(g, 
-                        max_steps=2000,
-                       prior_mean=np.array((0.25, 0.75)), 
-                       prior_sd=np.array([fwhm_to_sd(0.4)] * 2)
-                        )
-    steps, asymptotic, coins, mean_std, distr, initial_distr = res
-mean_std = np.array(mean_std)
-steps, asymptotic
+    if sim_params is None:
+        sim_params = {}
 
-# 0.530 seconds (677 iterations) without graphtool storing priors
-# 3.254 seconds (677 iterations) with graphtool
+    with make_progress() as progress:
+        progress.stop()
+        results = []
+        ensemble = progress.add_task("Ensemble", total=runs)
 
-# %%
-g = complete_graph_of_friends(100)
+        for r in range(runs):
+            sim = progress.add_task("Sim #{}".format(r))
+            results.append(run_simulation(gen_graph(), **sim_params, task_id=sim, progress=progress))
+            progress.update(ensemble, advance=1)
 
-init_simulation(g)
-
-# %%
-g.vp.prior_mean.a
+    return results
 
 
-# %%
-pr.print_stats()
+# using https://www.digitalocean.com/community/tutorials/how-to-use-threadpoolexecutor-in-python-3
+# using https://github.com/willmcgugan/rich/blob/master/examples/downloader.py
+
+def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=None):
+    """
+    sim_params: dictionary of parameters to pass to run_simulation
+    eg: sim_params = { "max_steps": 100 }
+    """
+
+    # by default, do complete graph of 10 nodes with random
+    if gen_graph is None:
+        def gen_graph(): return complete_graph_of_random(10)
+
+    if sim_params is None:
+        sim_params = {}
+
+    with make_progress() as progress:
+        progress.stop()
+        ensemble = progress.add_task("Ensemble", total=runs)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(run_simulation, gen_graph(), 
+                                    task_id=progress.add_task("Sim #{}".format(r), start=False),
+                                    progress=progress, 
+                                    **sim_params) 
+                       for r in range(runs)]
+
+            results = []
+            for future in as_completed(futures):
+                results.append(future.result())
+                progress.update(ensemble, advance=1, refresh=True)
+
+    return results
+
+# from dumping a numpy array to json : https://stackoverflow.com/a/47626762
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        # list of ndarrays
+        if isinstance(obj, list):
+            if len(obj) != 0 and isinstance(obj[0], np.ndarray):
+                return [el.tolist() for el in obj]
+        return json.JSONEncoder.default(self, obj)
 
 
-# %%
-plt.plot(np.cumsum(coins))
-
-# %%
-# mean
-plt.plot(mean_std[:,:,0], alpha=0.5)
-
-# %%
-# stddev
-plt.plot(mean_std[:,:,1], alpha=0.5)
-
-# %%
-# initial distribution
-plot_distr(initial_distr)
-
-# %%
-# final distribution
-plot_distr(distr)
+def dump_results_str(results):
+    return json.dumps(results._asdict(), cls=NumpyEncoder)
 
 
-# %%
+def dump_results(results, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w') as f:
+        json.dump(results._asdict(), f, cls=NumpyEncoder)
+
+
+def read_results(filename):
+    with open(filename, 'r') as f:
+        results_dict = json.load(f)
+
+        results_dict["final_distr"] = np.asarray(results_dict["final_distr"])
+        results_dict["initial_distr"] = np.asarray(
+            results_dict["initial_distr"])
+        results_dict["mean_std"] = [np.asarray(
+            el) for el in results_dict["mean_std"]]
+        return SimResults(**results_dict)
+
+
+def main():
+    pass
+
+
+if __name__ == '__main__':
+    main()
