@@ -43,10 +43,11 @@ steps, asymptotic
 # 3.254 seconds (677 iterations) with graphtool
 
 # %%
-g = complete_graph_of_friends(20)
+%%time
+g = complete_graph_of_random(3)
 
 init_simulation(g)
-res = run_simulation(g, max_steps=2000)
+res = run_simulation(g, max_steps=1000)
 
 # %%
 g.vp.prior_mean.a
@@ -102,9 +103,20 @@ res = do_ensemble(runs=10, gen_graph=lambda: complete_graph_of_enemies(10), sim_
 
 
 # %%
+# %%time
+# res = do_ensemble_parallel(runs=10, gen_graph=lambda: complete_graph_of_enemies(10), sim_params={"max_steps": 1000})
+
+
+
+# %%
+with cProfile.Profile() as pr:
+    res = do_ensemble(runs=20, gen_graph=lambda: complete_graph_of_random(15), sim_params={"max_steps": 10000})
+
+# %%
+pr.print_stats()
+
+# %%
 %%time
-res = do_ensemble_parallel(runs=10, gen_graph=lambda: complete_graph_of_enemies(10), sim_params={"max_steps": 1000})
-
-
+res = do_ensemble(runs=20, gen_graph=lambda: complete_graph_of_friends(10), sim_params={"max_steps": 1000})
 
 # %%

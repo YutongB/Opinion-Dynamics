@@ -7,41 +7,10 @@ import graph_tool.all as gt
 import matplotlib.pyplot as plt
 from random import choice
 
-from rich.progress import track
-
 import json
 import os
-import signal
-from threading import Event
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-from rich.progress import (
-    BarColumn,
-    Progress,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
-
-def make_progress():
-    return Progress(
-        TextColumn("{task.description}", justify="right"),
-        BarColumn(bar_width=15),
-        "[progress.percentage]{task.completed}",
-        "/",
-        "{task.total}",
-        "•",
-        TimeElapsedColumn(),
-        "/",
-        TimeRemainingColumn(),
-        refresh_per_second=5,
-        # transient=True,
-    )
-
-
-# TODO: Progress bar properly: https://github.com/willmcgugan/rich/blob/master/examples/downloader.py
-
 
 def create_model_graph(g=None):
     if g is None:
@@ -174,7 +143,7 @@ def bias():
     # values  (0.00, 0.05, ..., 1.00)
     return np.linspace(0, 1, BIAS_SAMPLES)
 
-
+@cache
 def bias_mat(num_priors):
     """
     generate matrix of num_prior rows and
@@ -211,7 +180,7 @@ def normalize_distr(distr):
     norm = np.sum(distr, axis=1)
     return distr / norm[:, None]
 
-
+@cache
 def coin_toss_likelihood(num_heads, num_coins=1):
     """
     coin toss likelihood - encodes the probability of observing a heads, given bias θ
@@ -223,21 +192,16 @@ def coin_toss_likelihood(num_heads, num_coins=1):
     return binom.pmf(num_heads, num_coins, bias())
     # return np.array((1 - bias(), bias()))
 
+def mean_distr(distrs):
+    return np.sum(distrs * bias_mat(distrs.shape[0]), axis=1)
 
-def normalising_constant(likelihood, graph_prior_distr):
-    """
-    value i is normalising constant for node / person i
-    sum_θ{  P(S(T) | θ) * x_i (t, θ) }
-    """
-    # @ is matrix multiplication
-    return np.sum(likelihood @ graph_prior_distr.T, axis=1)
-
+def std_distr(distrs, mean):
+    np.sqrt(
+        np.sum(np.square(bias_mat(distrs.shape[0]) - mean[:, None]) * distrs, axis=1))
 
 def mean_std_distr(distrs):
-    n = distrs.shape[0]
-    mean = np.sum(distrs * bias_mat(n), axis=1)
-    std = np.sqrt(
-        np.sum(np.square(bias_mat(n) - mean[:, None]) * distrs, axis=1))
+    mean = mean_distr(distrs)
+    std = std_distr(distrs, mean)
     return np.array([mean, std]).T
 
 
@@ -296,6 +260,7 @@ def graph_set_prior_distr(g, distr):
 
 
 def friendliness_mat(g):
+    # expensive function
     # get the friendliness matrix
     # (graph_tool internally uses an adjacency list representation,
     #  need to convert the weight list to a weight matrix;
@@ -307,10 +272,8 @@ def friendliness_mat(g):
     return friendliness
 
 
-def avg_dist_in_belief(g, posterior_distr):
-    n = g.num_vertices(ignore_filter=True)
-
-    friendliness = friendliness_mat(g)
+def avg_dist_in_belief(friendliness, posterior_distr):
+    n = friendliness.shape[0]
 
     xi = np.broadcast_to(posterior_distr, (n, n, 21)).transpose((1, 0, 2))
     xj = np.broadcast_to(posterior_distr, (n, n, 21))
@@ -354,12 +317,15 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     return distr
 
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10, num_coins=10):
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10, num_coins=10, friendliness=None):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
     """
     n = g.num_vertices(ignore_filter=True)
+
+    if friendliness is None:
+        friendliness = friendliness_mat(g)
 
     # simulate an independent coin toss
     toss = toss_coins(bias=true_bias, num_coins=num_coins)
@@ -372,7 +338,7 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
-    avg_dist_belief = avg_dist_in_belief(g, posterior_distr)   # (eqn 4)
+    avg_dist_belief = avg_dist_in_belief(friendliness, posterior_distr)   # (eqn 4)
 
     # TODO: learning_rate vector, length # nodes; set a learning rate for each person
 
@@ -385,20 +351,9 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
 
     # graph_set_prior_distr(g, next_prior_distr.T)
 
-    g.gp.step += 1
-
     # plot_graph_distr(g)
 
     return toss, next_prior_distr
-
-done_event = Event()
-
-
-def handle_sigint(signum, frame):
-    done_event.set()
-
-
-signal.signal(signal.SIGINT, handle_sigint)
 
 
 
@@ -409,12 +364,11 @@ SimResults = namedtuple("SimulationResults",
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25, epsilon=1e-10,
-                   tosses_per_iteration=10, task_id=None, progress=None):
+                   tosses_per_iteration=10):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
-    initial_distr = init_simulation(
-        g, prior_mean=prior_mean, prior_sd=prior_sd)
+    initial_distr = init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
 
     coins_list = []
     mean_std_list = []
@@ -423,20 +377,14 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
 
     max_steps = int(max_steps)
 
-    if progress is None:
-        progress = make_progress()
-
-    if task_id is None:
-        task_id = progress.add_task("Simulation", total=max_steps)
-    else:
-        progress.start_task(task_id)
-
-    progress.update(task_id, total=max_steps)
+    # For now, static friendliness; TODO: update friendliness dynamically.
+    friendliness = friendliness_mat(g)
 
     # steps 2-3 of Probabilistic automaton, until t = T
     for i in range(max_steps):
         coins, posterior = step_simulation(
-            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, epsilon=epsilon,
+            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, 
+            epsilon=epsilon, friendliness=friendliness,
             num_coins=tosses_per_iteration)
 
         mean_std_list.append(mean_std_distr(posterior))
@@ -447,19 +395,11 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         else:
             iters_asymptotic_learning = 0
 
-        progress.update(task_id, advance=1)
 
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
-            progress.update(task_id, total=i+1, completed=i+1)
             break
 
         prior_distr = posterior.copy()
-
-        if done_event.is_set():
-            return
-
-    # progress.update(task_id, advance=1)
-    progress.update(task_id, visible=False)
 
     return SimResults(steps=len(coins_list),
                       asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
@@ -482,15 +422,13 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
     if sim_params is None:
         sim_params = {}
 
-    with make_progress() as progress:
-        progress.stop()
-        results = []
-        ensemble = progress.add_task("Ensemble", total=runs)
+    results = []
 
-        for r in range(runs):
-            sim = progress.add_task("Sim #{}".format(r))
-            results.append(run_simulation(gen_graph(), **sim_params, task_id=sim, progress=progress))
-            progress.update(ensemble, advance=1)
+    for r in range(runs):
+        sim = run_simulation(gen_graph(), **sim_params)
+        print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
+
+        results.append(sim)
 
     return results
 
@@ -511,21 +449,14 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
     if sim_params is None:
         sim_params = {}
 
-    with make_progress() as progress:
-        progress.stop()
-        ensemble = progress.add_task("Ensemble", total=runs)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(run_simulation, gen_graph(),
+                                **sim_params) 
+                    for r in range(runs)]
 
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = [pool.submit(run_simulation, gen_graph(), 
-                                    task_id=progress.add_task("Sim #{}".format(r), start=False),
-                                    progress=progress, 
-                                    **sim_params) 
-                       for r in range(runs)]
-
-            results = []
-            for future in as_completed(futures):
-                results.append(future.result())
-                progress.update(ensemble, advance=1, refresh=True)
+        results = []
+        for future in as_completed(futures):
+            results.append(future.result())
 
     return results
 
