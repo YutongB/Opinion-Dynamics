@@ -12,6 +12,31 @@ import os
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import signal
+from threading import Event
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+
+def make_progress():
+    return Progress(
+        TextColumn("{task.description}", justify="right"),
+        BarColumn(bar_width=15),
+        "[progress.percentage]{task.completed}",
+        "/",
+        "{task.total}",
+        "•",
+        TimeElapsedColumn(),
+        "/",
+        TimeRemainingColumn(),
+        refresh_per_second=5,
+        # transient=True,
+    )
+
 def create_model_graph(g=None):
     if g is None:
         g = gt.Graph(directed=False)
@@ -355,7 +380,10 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
 
     return toss, next_prior_distr
 
-
+done_event = Event()
+def handle_sigint(signum, frame):
+    done_event.set()
+signal.signal(signal.SIGINT, handle_sigint)
 
 SimResults = namedtuple("SimulationResults",
                         ("steps", "asymptotic", "coins", "mean_std", "final_distr", "initial_distr"))
@@ -364,7 +392,7 @@ SimResults = namedtuple("SimulationResults",
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25, epsilon=1e-10,
-                   tosses_per_iteration=10):
+                   tosses_per_iteration=10,task_id=None, progress=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -380,6 +408,17 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     # For now, static friendliness; TODO: update friendliness dynamically.
     friendliness = friendliness_mat(g)
 
+    if progress is None:
+        progress = make_progress()
+
+    if task_id is None:
+        task_id = progress.add_task("Simulation", total=max_steps)
+    else:
+        progress.start_task(task_id)
+
+    progress.update(task_id, total=max_steps)
+
+
     # steps 2-3 of Probabilistic automaton, until t = T
     for i in range(max_steps):
         coins, posterior = step_simulation(
@@ -394,12 +433,17 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
-
+        
+        progress.update(task_id, advance=1)
 
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
+            progress.update(task_id, total=i+1, completed=i+1)
             break
 
         prior_distr = posterior.copy()
+
+        if done_event.is_set():
+            return
 
     return SimResults(steps=len(coins_list),
                       asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
@@ -422,13 +466,18 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
     if sim_params is None:
         sim_params = {}
 
-    results = []
+    with make_progress() as progress:
+        results = []
+        ensemble = progress.add_task("Ensemble", total=runs)
 
-    for r in range(runs):
-        sim = run_simulation(gen_graph(), **sim_params)
-        print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
+        for r in range(runs):
+            task_id = progress.add_task("Sim #{}".format(r+1))
+            sim = run_simulation(gen_graph(), **sim_params, task_id=task_id, progress=progress)
+            
+            #print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
+            results.append(sim)
+            progress.update(ensemble, advance=1)
 
-        results.append(sim)
 
     return results
 
