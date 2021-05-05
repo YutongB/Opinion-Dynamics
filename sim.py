@@ -183,6 +183,15 @@ def fwhm_to_sd(fwhm):
     return fwhm / 2.3548200450309493820231386529
 
 
+def gen_prior_mean(num_priors, mean_range=(0.0, 1.0)):
+    return uniform(*mean_range, num_priors)
+
+def gen_prior_sd(num_priors, fwhm_range=(0.2, 0.8), sd_range=None):
+    if sd_range is not None:
+         # alternatively generate directly from standard deviation
+        return uniform(*sd_range, num_priors)
+    return fwhm_to_sd(uniform(*fwhm_range, num_priors))
+
 def generate_priors(num_priors, mean_range=(0.0, 1.0), fwhm_range=(0.2, 0.8)):
     prior_mean = uniform(*mean_range, num_priors)
     prior_fwhm = uniform(*fwhm_range, num_priors)
@@ -218,11 +227,14 @@ def coin_toss_likelihood(num_heads, num_coins=1):
     # return np.array((1 - bias(), bias()))
 
 def mean_distr(distrs):
-    return np.sum(distrs * bias_mat(distrs.shape[0]), axis=1)
+    n = distrs.shape[0]
+    return np.sum(distrs * bias_mat(n), axis=1)
 
 def std_distr(distrs, mean):
-    np.sqrt(
-        np.sum(np.square(bias_mat(distrs.shape[0]) - mean[:, None]) * distrs, axis=1))
+    n = distrs.shape[0]
+    mean = mean[:, None]
+    return np.sqrt(
+        np.sum(np.square(bias_mat(n) - mean) * distrs, axis=1))
 
 def mean_std_distr(distrs):
     mean = mean_distr(distrs)
@@ -330,8 +342,8 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
         prior_mean, prior_sd = generate_priors(n)
 
     # equivalent to g.vp.prior_mean.get_array()[:]
-    g.vp.prior_mean.a = prior_mean
-    g.vp.prior_sd.a = prior_sd
+    g.vp.prior_mean.a = prior_mean.T
+    g.vp.prior_sd.a = prior_sd.T
 
     # transpose is O(1) !!!
     distr = prior_distr_vec(n, prior_mean, prior_sd)
@@ -341,8 +353,9 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     # g.vp.prior_distr.set_2d_array(distr.T)
     return distr
 
+EPSILON = 1e-15
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1e-10, num_coins=10, friendliness=None):
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10, friendliness=None):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -368,7 +381,7 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, epsilon=1
     # TODO: learning_rate vector, length # nodes; set a learning rate for each person
 
     bayes_update_max_RHS = posterior_distr + avg_dist_belief * learning_rate
-    bayes_update_max_LHS = np.broadcast_to(epsilon, (n, 21))
+    bayes_update_max_LHS = np.broadcast_to(EPSILON, (n, 21))
     bayes_update = np.amax(
         np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
 
@@ -391,7 +404,7 @@ SimResults = namedtuple("SimulationResults",
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
-                   true_bias=0.5, learning_rate=0.25, epsilon=1e-10,
+                   true_bias=0.5, learning_rate=0.25, 
                    tosses_per_iteration=10,task_id=None, progress=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
@@ -423,7 +436,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     for i in range(max_steps):
         coins, posterior = step_simulation(
             g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, 
-            epsilon=epsilon, friendliness=friendliness,
+            friendliness=friendliness,
             num_coins=tosses_per_iteration)
 
         mean_std_list.append(mean_std_distr(posterior))
