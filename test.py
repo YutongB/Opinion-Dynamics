@@ -70,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--max_iter", "--max_steps", default=1000, type=int,
                         help="maximum number of iterations per simulation")
     
-    parser.add_argument('-e', "--edges", choices=["friends", "enemies", "random", "random_unif"], help="select edges type", default="random")
+    parser.add_argument('-e', "--edges", choices=["friends", "enemies", "random", "random_unif"], help="type of each edge (friendliness) on generated graph", default="random")
 
     # TODO: options for stuff other than complete graphs
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                         help="true bias of coin")
 
     parser.add_argument("-a", "--asym-max-iters", "--asymptotic_max_iters", 
-                        default=10, type=int, help="true bias of coin")
+                        default=10, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
 
     parser.add_argument("-t", "--tosses",  "--tosses-per-iter", 
                         default=10, type=int, help="number of tosses per iteration")
@@ -94,17 +94,18 @@ if __name__ == '__main__':
     # TODO: parameter for dice (n)
 
     parser.add_argument("-u", "--learning-rate", "--mu", default=0.5, type=float,
-                        help="")
+                        help="", metavar="MU")
 
     mean = parser.add_mutually_exclusive_group()
-    mean.add_argument("--mean_range", nargs=2, default=[0.0, 1.0], type=float)
+    mean.add_argument("--mean_range", nargs=2, default=[0.0, 1.0], type=float,
+    metavar=("MEAN_FROM", "MEAN_TO"))
     mean.add_argument("--prior_mean", "--mean", type=float)
 
     sd = parser.add_mutually_exclusive_group()
-    sd.add_argument("--sd_range", nargs=2, type=float)
-    sd.add_argument("--prior_sd", "--sd", type=float)
-    sd.add_argument("--fwhm_range", nargs=2, default=[0.2, 0.8], type=float)
-    sd.add_argument("--prior_fwhm", "--fwhm", type=float)
+    sd.add_argument("--sd_range", nargs=2, type=float, metavar=("SD_FROM", "SD_TO"))
+    sd.add_argument("--prior_sd", "--sd", type=float, metavar="SD")
+    sd.add_argument("--fwhm_range", nargs=2, default=[0.2, 0.8], type=float, metavar=("FWHM_FROM", "FWHM_TO"))
+    sd.add_argument("--prior_fwhm", "--fwhm", type=float, metavar="FWHM")
 
     args = parser.parse_args()
 
