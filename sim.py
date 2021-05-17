@@ -1,11 +1,13 @@
 from collections import namedtuple
 from functools import cache
+from operator import pos
 from scipy.stats import norm, binom
 from numpy.random import seed, uniform
 import numpy as np
 import graph_tool.all as gt
 import matplotlib.pyplot as plt
 from random import choice
+from datetime import datetime
 
 import json
 import os
@@ -55,7 +57,7 @@ def create_model_graph(g=None):
     g.vertex_properties["prior_distr"] = g.new_vertex_property(
         "vector<double>")
 
-    g.graph_properties['step'] = g.new_graph_property('int')
+    # g.graph_properties['step'] = g.new_graph_property('int')
 
     return g
 
@@ -297,16 +299,8 @@ def graph_set_prior_distr(g, distr):
 
 
 def friendliness_mat(g):
-    # expensive function
-    # get the friendliness matrix
-    # (graph_tool internally uses an adjacency list representation,
-    #  need to convert the weight list to a weight matrix;
-    #  rows / cols being neighbouring nodes)
-    # laplacian doc: https://graph-tool.skewed.de/static/doc/spectral.html#graph_tool.spectral.laplacian
-    friendliness = -gt.laplacian(g, weight=g.ep.friendliness).toarray()
-    # diagonals of laplacian are some 'gamma'
-    np.fill_diagonal(friendliness, 0)
-    return friendliness
+    # takes roughly 300ms for graph of n=10
+    return gt.adjacency(g, weight=g.ep.friendliness).toarray()
 
 
 def avg_dist_in_belief(friendliness, posterior_distr):
@@ -329,8 +323,6 @@ def avg_dist_in_belief(friendliness, posterior_distr):
 # mean_range=(0.0, 1.0), fwhm_range=(0.2, 0.8)
 def init_simulation(g, prior_mean=None, prior_sd=None):
     n = g.num_vertices(ignore_filter=True)
-
-    g.gp.step = 0
 
     if prior_mean is not None and prior_mean.shape[0] != n:
         raise Exception("Invalid prior mean entered, g has dimension", n)
@@ -399,8 +391,11 @@ def handle_sigint(signum, frame):
 signal.signal(signal.SIGINT, handle_sigint)
 
 SimResults = namedtuple("SimulationResults",
-                        ("steps", "asymptotic", "coins", "mean_std", "final_distr", "initial_distr"))
+                        ("steps", "asymptotic", "coins", "mean_list", "std_list", 
+                        "final_distr", "initial_distr", "friendliness", "adjacency"))
 
+def adjacency_mat(g):
+    return gt.adjacency(g).toarray()
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
@@ -412,13 +407,14 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     initial_distr = init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
 
     coins_list = []
-    mean_std_list = []
+    mean_list = []
+    std_list = []
     iters_asymptotic_learning = 0
     prior_distr = initial_distr.copy()
 
     max_steps = int(max_steps)
 
-    # For now, static friendliness; TODO: update friendliness dynamically.
+    # For now, static friendliness; TODO: update friendliness dynamically. (Hi Christine!)
     friendliness = friendliness_mat(g)
 
     if progress is None:
@@ -431,7 +427,6 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
 
     progress.update(task_id, total=max_steps)
 
-
     # steps 2-3 of Probabilistic automaton, until t = T
     for i in range(max_steps):
         coins, posterior = step_simulation(
@@ -439,7 +434,9 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             friendliness=friendliness,
             num_coins=tosses_per_iteration)
 
-        mean_std_list.append(mean_std_distr(posterior))
+        mean = mean_distr(posterior)
+        mean_list.append(mean)
+        std_list.append(std_distr(posterior, mean))
         coins_list.append(coins)
 
         if np.all(np.any(posterior > 0.99, axis=1)):
@@ -458,12 +455,17 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         if done_event.is_set():
             return
 
+    adjacency = adjacency_mat(g)
+
     return SimResults(steps=len(coins_list),
                       asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
                       coins=coins_list,
-                      mean_std=mean_std_list,
+                      mean_list=mean_list,
+                      std_list=std_list,
                       final_distr=prior_distr,
-                      initial_distr=initial_distr)
+                      initial_distr=initial_distr,
+                      adjacency=adjacency,
+                      friendliness=friendliness)
 
 
 def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
@@ -495,15 +497,13 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
     return results
 
 
-# using https://www.digitalocean.com/community/tutorials/how-to-use-threadpoolexecutor-in-python-3
-# using https://github.com/willmcgugan/rich/blob/master/examples/downloader.py
-
+# TODO: This doesn't work because of the GIL
 def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=None):
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
     """
-
+    raise NotImplemented("not working because of GIL")
     # by default, do complete graph of 10 nodes with random
     if gen_graph is None:
         def gen_graph(): return complete_graph_of_random(10)
@@ -512,9 +512,7 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
         sim_params = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(run_simulation, gen_graph(),
-                                **sim_params) 
-                    for r in range(runs)]
+        futures = [pool.submit(run_simulation, gen_graph(), **sim_params) for r in range(runs)]
 
         results = []
         for future in as_completed(futures):
@@ -525,6 +523,7 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
 # from dumping a numpy array to json : https://stackoverflow.com/a/47626762
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
+
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         # list of ndarrays
@@ -534,31 +533,49 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def dump_results_str(results):
-    return json.dumps(results._asdict(), cls=NumpyEncoder)
-
-
 def dump_results(results, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
-        json.dump(results._asdict(), f, cls=NumpyEncoder)
+        # convert namedtuple to dictionary
+        json.dump([r._asdict() for r in results], f, cls=NumpyEncoder)
+
+def dump_dict(d, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w') as f:
+        json.dump(d, f, cls=NumpyEncoder)
+
+def parse_result(results_dict):
+    for k in ["adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list"]:
+        results_dict[k] = np.asarray(results_dict[k])
+
+    return SimResults(**results_dict)
 
 
 def read_results(filename):
     with open(filename, 'r') as f:
-        results_dict = json.load(f)
+        return [parse_result(r) for r in json.load(f)]
+        #results = list(map(parse_result, results))
 
-        results_dict["final_distr"] = np.asarray(results_dict["final_distr"])
-        results_dict["initial_distr"] = np.asarray(
-            results_dict["initial_distr"])
-        results_dict["mean_std"] = [np.asarray(
-            el) for el in results_dict["mean_std"]]
-        return SimResults(**results_dict)
-
-
-def main():
-    pass
+def matrix_to_edge_list(mat):
+    n = len(mat)
+    return [(u, v)
+        for u in range(n) for v in range(u+1, n)]
 
 
-if __name__ == '__main__':
-    main()
+def read_graph(adjacency, friendliness):
+    g = create_model_graph()
+    n = len(adjacency)
+    g.add_vertex(n)
+    g.add_edge_list([(u, v, friendliness[u][v]) 
+        for u, v in matrix_to_edge_list(adjacency)], 
+        eprops=[g.ep.friendliness])
+
+    return g
+    #friend_edges = {(u, v): friendliness[u][v] 
+    #    for u in range(n) for v in range(u+1, n) }
+    
+
+
+def timestamp():
+    return datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+

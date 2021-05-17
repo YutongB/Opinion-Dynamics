@@ -6,16 +6,87 @@
 from IPython import get_ipython
 import cProfile
 from sim import *
-from datetime import datetime
-%load_ext autoreload
 
-# %%
 import matplotlib as mpl
 mpl.use('cairo')
 get_ipython().run_line_magic('matplotlib', 'inline')
 
+import pandas as pd
+
+class AnalyseResults:
+    DEF_IDX = -1
+    def __init__(self, filename):
+        self.filename = filename
+        """ a list of results
+        SimResults = namedtuple("SimulationResults",
+                                ("steps", "asymptotic", "coins", "mean_list", "std_list", 
+                                "final_distr", "initial_distr", "friendliness", "adjacency"))
+        """
+        self.results = read_results(filename)
+
+    def sim(self, sim_idx=DEF_IDX):
+        return self.results[sim_idx]
+
+    def graph(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        return read_graph(sim.adjacency, sim.friendliness)
+    
+    def draw_graph(self, sim_idx=DEF_IDX):
+        draw_graph(self.graph(sim_idx))
+
+    def friendliness(self, sim_idx=DEF_IDX):
+        return self.sim(sim_idx).friendliness
+
+    def adjacency(self, sim_idx=DEF_IDX):
+        return self.sim(sim_idx).adjacency
+    
+    def plot_coins(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        plt.plot(np.cumsum(sim.coins))
+        plt.legend()
+
+    def plot_mean(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        # alpha is transparency of graph lines
+        plt.plot(sim.mean_list, alpha=0.5)
+        plt.legend()
+
+    def plot_std(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        # alpha is transparency of graph lines
+        plt.plot(sim.std_list, alpha=0.5)
+        plt.legend()
+
+    def plot_initial_distr(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        # alpha is transparency of graph lines
+        plt.plot(sim.initial_distr.T)
+        plt.xlabel("$\\theta$")
+
+        plt.legend()
+
+    def plot_final_distr(self, sim_idx=DEF_IDX):
+        sim = self.sim(sim_idx)
+        # alpha is transparency of graph lines
+        plt.plot(sim.final_distr.T)
+        plt.xlabel("$\\theta$")
+
+        plt.legend()
+
+    def get_col(self, colname):
+        return list(map(lambda x: x._asdict()[colname], self.results))
+
+    def steps_asymp(self):
+        d = {
+            "steps": self.get_col("steps"),
+            "asymptotic": self.get_col("asymptotic"),
+        }
+        return pd.DataFrame(d)
 # %%
-draw_graph(complete_graph_of_random(10))
+res = AnalyseResults("output/res-2021_05_11-22_05_06.json")
+
+# %%
+res.plot_final_distr()
 
 # %%
 g = pair_of_allies()
@@ -23,7 +94,6 @@ init_simulation(g, prior_mean=np.array((0.25, 0.75)),
                 prior_sd=np.array([fwhm_to_sd(0.4)] * 2))
 
 draw_graph(g)
-
 # %%
 g = complete_graph_of_enemies(2)
 
@@ -57,28 +127,9 @@ g.vp.prior_mean.a
 #pr.print_stats()
 
 
-# %%
-plt.plot(np.cumsum(coins))
-
-# %%
-# mean
-plt.plot(mean_std[:, :, 0], alpha=0.5)
-
-# %%
-# stddev
-plt.plot(mean_std[:, :, 1], alpha=0.5)
-
-# %%
-# initial distribution
-plot_distr(initial_distr)
-
-# %%
-# final distribution
-plot_distr(distr)
 
 
-def timestamp():
-    return datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
+
 
 # %%
 last_results_fname = "output/res-{}.json".format(timestamp())
