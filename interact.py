@@ -43,36 +43,45 @@ class AnalyseResults:
     
     def plot_coins(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
+        n = len(sim.initial_distr.T)
         plt.plot(np.cumsum(sim.coins))
-        plt.legend()
+        plt.legend(range(n))
 
     def plot_mean(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
+        n = len(sim.initial_distr.T)
         # alpha is transparency of graph lines
         plt.plot(sim.mean_list, alpha=0.5)
-        plt.legend()
+        plt.xlabel("Iteration")
+        plt.ylabel("Mean")
+        plt.legend(range(n))
 
     def plot_std(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
+        n = len(sim.initial_distr.T)
         # alpha is transparency of graph lines
         plt.plot(sim.std_list, alpha=0.5)
-        plt.legend()
+        plt.xlabel("Iteration")
+        plt.ylabel("Standard Deviation")
+        plt.legend(range(n))
 
     def plot_initial_distr(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
+        n = len(sim.initial_distr.T)
         # alpha is transparency of graph lines
         plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.initial_distr.T)
         plt.xlabel("$\\theta$")
-
-        plt.legend()
+        plt.ylabel("Probability")
+        plt.legend(range(n))
 
     def plot_final_distr(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
+        n = len(sim.initial_distr.T)
         # alpha is transparency of graph lines
         plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.final_distr.T)
         plt.xlabel("$\\theta$")
-
-        plt.legend()
+        plt.ylabel("Probability")
+        plt.legend(range(n))
 
     def get_col(self, colname):
         return list(map(lambda x: x._asdict()[colname], self.results))
@@ -84,10 +93,19 @@ class AnalyseResults:
         }
         return pd.DataFrame(d)
 # %%
-res = AnalyseResults("output/res-2021_05_11-22_05_06.json")
+res = AnalyseResults("output/res-2021_05_18-23_42_23.json")
 
 # %%
+res.plot_initial_distr()
+# %%
 res.plot_final_distr()
+
+# %%
+res.plot_mean()
+
+# %%
+res.plot_std()
+
 
 # %%
 g = pair_of_allies()

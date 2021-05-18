@@ -345,7 +345,7 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     # g.vp.prior_distr.set_2d_array(distr.T)
     return distr
 
-EPSILON = 1e-15
+EPSILON = 0
 
 def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10, friendliness=None):
     """
