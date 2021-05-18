@@ -12,6 +12,7 @@ mpl.use('cairo')
 get_ipython().run_line_magic('matplotlib', 'inline')
 
 import pandas as pd
+import numpy as np
 
 class AnalyseResults:
     DEF_IDX = -1
@@ -60,7 +61,7 @@ class AnalyseResults:
     def plot_initial_distr(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
         # alpha is transparency of graph lines
-        plt.plot(sim.initial_distr.T)
+        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.initial_distr.T)
         plt.xlabel("$\\theta$")
 
         plt.legend()
@@ -68,7 +69,7 @@ class AnalyseResults:
     def plot_final_distr(self, sim_idx=DEF_IDX):
         sim = self.sim(sim_idx)
         # alpha is transparency of graph lines
-        plt.plot(sim.final_distr.T)
+        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.final_distr.T)
         plt.xlabel("$\\theta$")
 
         plt.legend()
