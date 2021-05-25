@@ -1,4 +1,4 @@
-name: gt
+name: opinion-dynamics
 channels:
   - conda-forge
   - defaults
