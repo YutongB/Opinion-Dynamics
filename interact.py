@@ -6,6 +6,7 @@
 from IPython import get_ipython
 import cProfile
 from sim import *
+from balance import *
 
 import matplotlib as mpl
 mpl.use('cairo')
@@ -14,6 +15,7 @@ get_ipython().run_line_magic('matplotlib', 'inline')
 import pandas as pd
 import numpy as np
 
+# %%
 class AnalyseResults:
     DEF_IDX = -1
     def __init__(self, filename):
@@ -93,7 +95,7 @@ class AnalyseResults:
         }
         return pd.DataFrame(d)
 # %%
-res = AnalyseResults("output/res-2021_05_18-23_42_23.json")
+res = AnalyseResults("output/res-2021_05_25-11_46_51.json")
 
 # %%
 res.plot_initial_distr()

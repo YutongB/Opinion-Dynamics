@@ -70,12 +70,12 @@ def create_random_graph():
 
 def draw_graph(g, show_vertex_labels=False, width=150):
 
-    edge_color_map = {-1: (1, 0, 0, 1), 1: (0, 1, 0, 1)}
-    edge_colors = [edge_color_map[e] for e in g.ep.friendliness]
+    # edge_color_map = {-1: (1, 0, 0, 1), 1: (0, 1, 0, 1), 0: (0, 0, 0, 0)}
+    # edge_colors = [edge_color_map[int(e)] for e in g.ep.friendliness]
 
     gt.graph_draw(g,
                   vertex_text=g.vertex_index if show_vertex_labels else None,
-                  # edge_color=edge_colors,
+                #   edge_color=edge_colors,
                   edge_text=g.ep.friendliness,
                   output_size=(width, width))
 

@@ -14,6 +14,7 @@ def parse_graph(args):
         generator = gen_relationship_binary
     elif edges == "random_unif":
         generator = gen_relationship_uniform
+    
 
     return lambda: gen_complete_graph(n, generator)
 
