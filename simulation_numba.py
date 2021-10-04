@@ -14,6 +14,19 @@ from scipy import stats
 
 @njit
 def do_simulation(adj, beliefs, true_bias=0.6, threshold=0.01, time_threshold=100, num_iter=10000, learning_rate=0.25):
+    """
+    If there are n nodes, then
+    
+    adj must be a n x n 2D matrix
+    beliefs must be a 2D matrix with beliefs.shape[0] must equal n, beliefs[1] stores the priors.
+    threshold controls how similar the priors must be for the node to be considered asymp
+    time_threshold controls how many consecutive time steps the difference in priors must be within threshold to be considered asymp
+    num_iter controls the max number of time steps. Note the automaton exits early if asymp is reached.
+    learning rate must be between 0.0 and 0.5 for sensible results
+    
+    The num_change return value is mostly irrelevant, it is there for some debugging purposes in the past
+    But I don't use it anymore
+    """
     bias_list = np.linspace(0,1,beliefs.shape[1])
     heads_list = np.random.binomial(1, true_bias, size=num_iter)
     
@@ -29,12 +42,16 @@ def do_simulation(adj, beliefs, true_bias=0.6, threshold=0.01, time_threshold=10
         
         if np.all(asymp_time >= time_threshold):
             return t, asymp_time, asymp_median, heads_list, num_change
-            
+    
+    # if exhausted num_iter time steps, return 0 instead of t
     return 0, asymp_time, asymp_median, heads_list, num_change
 
 
 @njit
 def do_simulation_triad(adj, beliefs, true_bias=0.6, threshold=0.01, time_threshold=100, num_iter=10000, learning_rate=0.25):
+    """
+    The same as do_simulation, but only check the first two nodes for asymp
+    """
     bias_list = np.linspace(0,1,beliefs.shape[1])
     heads_list = np.random.binomial(1, true_bias, size=num_iter)
     
@@ -56,6 +73,9 @@ def do_simulation_triad(adj, beliefs, true_bias=0.6, threshold=0.01, time_thresh
 
 @njit
 def do_simulation_heads_provided(adj, beliefs, heads_list, threshold=0.01, time_threshold=100):
+    """
+    Same as do_simulation, but you provide the heads_list. Assumes one toss per iteration
+    """
     bias_list = np.linspace(0,1,beliefs.shape[1])
     
     old_beliefs = beliefs.copy()
@@ -76,6 +96,9 @@ def do_simulation_heads_provided(adj, beliefs, heads_list, threshold=0.01, time_
     
 @njit
 def do_simulation_with_history(adj, beliefs, true_bias=0.6, threshold=0.01, time_threshold=100, num_iter=10000, learning_rate=0.25):
+    """
+    Do simulation wih some "debugging" features. Also returns the priors at every single time step
+    """
     bias_list = np.linspace(0,1,beliefs.shape[1])
     heads_list = np.random.binomial(1, true_bias, size=num_iter)
     
@@ -208,6 +231,12 @@ def generate_beliefs(bias_len=21, adj_size=10):
 def gaussian(bias_list, mean=0.5, stddev=0.5):
     #return np.exp(-4 * np.log(2) * ((bias_list - mean) / stddev) ** 2)
     return np.exp(-((bias_list-mean) / stddev)**2 / 2)
+    
+
+@njit
+def gaussian_norm(bias_list, mean=0.5, stddev=0.5):
+    le_gaussian = gaussian(bias_list, mean=mean, stddev=stddev)
+    return le_gaussian / le_gaussian.sum()
 
 
 @njit
@@ -238,8 +267,10 @@ def ba_graph(n=10,m=5):
     return adj
     
 
-
 def get_adj_from_nx(g):
+    """
+    Convert a nx Graph object to a 2D adj matrix
+    """
     n = g.number_of_nodes()
     adj = np.zeros((n,n), dtype=np.int32)
     for u, v, correlation in g.edges(data='correlation'):
@@ -254,6 +285,9 @@ def get_adj_from_nx(g):
     
     
 def get_nx_from_adj(adj):
+    """
+    Convert a 2D adj matrix to a nx Graph object
+    """
     g = nx.Graph()
     g.add_nodes_from(range(adj.shape[0]))
     
@@ -268,6 +302,9 @@ def get_nx_from_adj(adj):
 
 def test_graph_balance(adj):
     """	
+    Test graph balance using the cluster version.
+    Done by attempting to group nodes into clusters, and seeing if any contradiction arises.
+    
     Return values:	
     0: Unbalanced	
     1: Weakly balanced	
@@ -296,7 +333,8 @@ def test_graph_balance(adj):
             queued_friends.update(new_friends)
             checked_nodes.add(current_node)
         
-    # now check for enemies. if two nodes in the same group are enemies, then the network is unbalanced
+    # # now check for enemies. if two nodes in the same group are enemies, then the network is unbalanced
+    # # commented block is equivalent to the next uncommented block
     # for i in range(adj.shape[0]-1):
     #     enemies = adj2[i] < 0
     #     has_contradiction = np.any(group_id[i] == group_id[enemies])
@@ -335,15 +373,20 @@ def test_graph_balance(adj):
                 group_id[nodes2] = u
                 break
                 
-    # the graph is not unbalanced. now check the number of unique group ids to determine the number of clusters
+    # the graph is not unbalanced. Now check the number of unique group ids to determine the number of clusters
     num_clusters = np.unique(group_id).shape[0]
     if num_clusters <= 2:
         return 2
     return 1
+    
+    # # Use this to return the number of clusters instead. Not guaranteed to find the minimum number of clusters though!
     # return np.unique(group_id).shape[0]
 
 
 def test_first_wrong():
+    """
+    Responsible for Table 1 / Figure 4, pair of opponents
+    """
     bias_len = 21
     bias_list = np.linspace(0,1,bias_len)
     # results_dict = {'Diff': [], 'Median diff': []}
@@ -455,9 +498,14 @@ def test_first_wrong():
 
 
 def test_first_wrong_mu():
+    """
+    Responsible for Figure 6, in unbalanced triad section
+    """
     bias_len = 21
     true_bias = 0.6
     bias_list = np.linspace(0,1,bias_len)
+    
+    # # test three different ranges of mu
     # mu_list = np.arange(0.0001, 0.0051, 0.0001)
     mu_list = np.arange(0.006, 0.051, 0.001)
     # mu_list = np.arange(0.06, 0.51, 0.01)
@@ -535,6 +583,10 @@ def test_first_wrong_mu():
 
 
 def test_unbalanced_triad():
+    """
+    Responsible for the test described at the end of Section 4.3 (Unbalanced triad)
+    Found no significant difference in right times - wrong times compared to pair of opponents
+    """
     bias_len = 21
     bias_list = np.linspace(0,1,bias_len)
     results_dict = {'Diff': []}
@@ -618,7 +670,10 @@ def test_unbalanced_triad():
     plt.show()
 
  
-def read(file='output/results_pair.xlsx'):
+def read_pair_opponent(file='output/results_pair.xlsx'):
+    """
+    Reads and plots results from test_first_wrong
+    """
     df = pd.read_excel(file)
     print(df.describe())
     print(df.mode())
@@ -631,7 +686,7 @@ def read(file='output/results_pair.xlsx'):
     
     fig_size = (4.5,4)
     
-    fig, ax = plt.subplots(figsize=fig_size)
+    fig, ax = plt.subplots()
     ax.hist(new_df[new_df < 5000], bins='auto')
     ax.set_xlabel(r'$t_a^{\rm right} - t_a^{\rm wrong}$')
     ax.set_ylabel('Count')
@@ -665,46 +720,30 @@ def read(file='output/results_pair.xlsx'):
     
     plt.show()
 
-def test_ba():
-    n = 100
-    m = 10
 
-    num_graphs = 1
-    key_unbalanced = 0
-    key_weak = 1
-    key_strong = 2
-    num_computed_list = np.zeros(3, dtype=int)
-    results = [[], [], []]
-    
-    count = 0
-    num_failed = 0
-    
-    while np.any(num_computed_list < num_graphs):
-        adj = get_ba_adj_random_sign(n,m)
-        balance = test_graph_balance(adj)
-        if num_computed_list[balance] >= num_graphs:
-            num_failed += 1
-            if num_failed % 1000 == 0:
-                print(f'Failed: {num_failed}')
-            continue
-        
-        num_failed = 0
-        beliefs = generate_beliefs(adj_size=n)
-        t, *_ = do_simulation(adj=adj, beliefs=beliefs, num_iter=10000)
-        results[balance].append(t)
-        num_computed_list[balance] += 1
-        count += 1
-        print(count)
-        if num_computed_list[balance] == num_graphs:
-            print(f'{balance} done.')
-        
-    df = pd.DataFrame(results, columns=['Unbalanced', 'Weak', 'Strong'])
-    print('')
-    print(df[df > 0].describe())
+def read_mu():
+    """
+    Read results from test_first_wrong_mu
+    """
+    df2 = pd.read_excel('output/results_mu_part1.xlsx', sheet_name='Agreements-trials')
+    mu_list = list(df2)
+    percent_disagree = [1 - df2[mu].iloc[0] / df2[mu].iloc[1] for mu in mu_list]
+    fig, ax = plt.subplots()
+    ax.plot(mu_list, percent_disagree)
+    ax.set_xlabel(r'$\mu$')
+    ax.set_ylabel(r'$D$')
+    ax.grid(linestyle='--', axis='both')
+    fig.tight_layout()
+    plt.show()
 
 
 def get_ba_adj_random_sign(n=100,m=3):
-    # note: include seed=100 for reproducability 
+    """
+    Generates a BA graph, then randomly assigns an edge weight of +1 or -1 to each edge
+    Returns the adj matrix
+    
+    Note: include seed=100 in nx.barabasi_albert_graph for reproducability 
+    """
     g = nx.barabasi_albert_graph(n,m)
     for edge in g.edges():
         g.edges[edge]['correlation'] = 1 if np.random.random() < 0.5 else -1
@@ -713,6 +752,9 @@ def get_ba_adj_random_sign(n=100,m=3):
 
 
 def get_clustered_complete_graph(n=10, k=2):
+    """
+    Generates a complete graph with k clusters.
+    """
     if k <= 0:
         raise ValueError('Number of clusters must be more than 0')
     if k > n:
@@ -735,27 +777,42 @@ def get_clustered_complete_graph(n=10, k=2):
     
 def get_clustered_ba_graph(n=10, m=3, k=2):
     """
+    Attempts to generate a BA graph with k clusters.
+    
     n: number of nodes
     m: attachment parameter
     k: number of clusters
+    
+    Unlike the complet graph version, no guarantee that k clusters are actually generated, especialy if k \rightarrow n.
+    The reason being that belonging to the same cluster only require the two agents to not be opponents.
+    So if there are a lot of small clusters, you may be able to join those clusters together into a bigger cluster,
+    but the algorithm doesn't check for this.
     """
     
+    # # Uncommenting these lines makes this function numba compatible
+    # # However, I don't trust myself enough to write numba compatible code for nx.barabasi_albert_graph
     # adj_ba = ba_graph(n,m)
     # adj_cluster = get_clustered_complete_graph(n,k)
     # return adj_ba * adj_cluster
     
+    # replace these lines to generate whatever graph you want
     g = nx.barabasi_albert_graph(n,m)
     for edge in g.edges():
         g.edges[edge]['correlation'] = 1
     adj = get_adj_from_nx(g)
     
+    # np.ones ensure that each cluster has at least one node
+    # multinomial fills in the remaining nodes
     cluster_sizes = np.ones(k, dtype=int) + np.random.multinomial(n-k, np.ones(k)/k)
+    
+    # now that we have the size of each cluster, we assign each node to a cluster by giving them an ID
     nodes_id = []
     for count, i in enumerate(cluster_sizes):
         nodes_id.extend([count] * i)
     nodes_id = np.array(nodes_id)
     np.random.shuffle(nodes_id)
     
+    # nodes_id is a 1D array, so turn it into 2D
     is_same_group = nodes_id.reshape(-1,1) == nodes_id
     is_connected = adj == 1
     adj[(~is_same_group) & is_connected] = -1
@@ -763,6 +820,9 @@ def get_clustered_ba_graph(n=10, m=3, k=2):
     
     
 def test_ba_hist_opponents():
+    """
+    Responsible for Table 2, Figures 11 and 12
+    """
     heads_list = np.array(read_coin_observations('output/ba3/data/observations.txt')[0])
     g = recreate_graph('output/ba2')
     adj = get_adj_from_nx(g)
@@ -869,6 +929,9 @@ def test_ba_hist_opponents():
 
 
 def read_ba_hist():
+    """
+    Reads and plots data generated from test_ba_hist_opponents
+    """
     num_agree_list = []
     degree_diff_list = []
     degree_list = []
@@ -966,6 +1029,10 @@ def read_ba_hist():
 
 
 def test_ba_num_wrong_vs_n():
+    """
+    This was supposed to test the number of wrong agents vs network size, but 
+    didn't get enough time to actually do it
+    """
     repetitions = 100
     n_range = np.arange(10, 101, 5)
     num_correct_dict = {}
@@ -1008,16 +1075,22 @@ def test_ba_num_wrong_vs_n():
         df3.to_excel(writer, index=False, sheet_name='Wrong times')
 
 
-def test_ba_balance():
-    @njit
-    def test_asymp(adj, asymp_time):
-        did_not_asymp = asymp_time < 100
-        for count, asymp in enumerate(did_not_asymp):
-            if asymp:
-                if np.count_nonzero(adj[count] > 0) == 0:
-                    print('Ye')
-                    break
+@njit
+def test_asymp(adj, asymp_time):
+    """
+    Don't quite remember why I wrote this. I think it's safe to ignore this
+    """
+    did_not_asymp = asymp_time < 100
+    for count, asymp in enumerate(did_not_asymp):
+        if asymp:
+            if np.count_nonzero(adj[count] > 0) == 0:
+                print('Ye')
+                break
 
+def test_ba_balance():
+    """
+    Responsible for Figures 17, 18 and Table 4, 5 in Section 6 (structural balance)
+    """
     repetitions = 1000
     num_no_asymp = {'Strong': np.ones(repetitions, dtype=int), 'Weak': np.ones(repetitions, dtype=int), 'Unbalanced': np.ones(repetitions, dtype=int)}
     asymp_times = {'Strong': np.ones(repetitions, dtype=int), 'Weak': np.ones(repetitions, dtype=int), 'Unbalanced': np.ones(repetitions, dtype=int)}
@@ -1083,6 +1156,9 @@ def test_ba_balance():
     
     
 def test_ba_mixed():
+    """
+    Responsible for Figure 14 and Table 3 in Section 5.2 (lambda for n=100 BA network)
+    """
     repetitions = 1000
     num_no_asymp = np.ones(repetitions, dtype=int)
     asymp_times = np.ones(repetitions, dtype=int)
@@ -1105,16 +1181,29 @@ def test_ba_mixed():
 
 
 def test_sus():
+    """
+    If I'm suspicious of some strange behaviour, that'll get tested here.
+    You can probably just ignore this
+    """
     beliefs = None
     heads_list = None
-    adj = None
+    adj = np.array([[0,-1],[-1,0]])
+    
+    mu = 2e-3
     
     while True:
-        adj = get_clustered_ba_graph(100,3,2)
-        beliefs = generate_beliefs(adj_size=100)
+        # adj = get_clustered_ba_graph(100,3,2)
+        # beliefs = generate_beliefs(adj_size=100)
+        # 
+        # t, asymp_time, asymp_median, heads_list, num_change = do_simulation(adj, beliefs)
+        # if np.any(asymp_time < 100):
+        #     break
+            
+        beliefs = generate_beliefs(adj_size=2)
         
-        t, asymp_time, asymp_median, heads_list, num_change = do_simulation(adj, beliefs)
-        if np.any(asymp_time < 100):
+        t, asymp_time, asymp_median, heads_list, num_change = do_simulation(adj, beliefs, learning_rate=mu)
+        if not np.isclose(asymp_median[0], asymp_median[1]):
+            print(asymp_time[0] - asymp_time[1])
             break
     
     g = get_nx_from_adj(adj)
@@ -1127,12 +1216,15 @@ def test_sus():
     simulator = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=21, output_direc=folder)
     simulator.heads_list = heads_list
     simulator.tosses_list = np.ones(10000, dtype=int)
-    simulator.do_simulation(num_iter=10000, blend_method=0, learning_rate=0.25)
+    simulator.do_simulation(num_iter=10000, blend_method=0, learning_rate=mu)
     analyser = analyse.DataAnalyser(folder)
     analyser.produce_plots()
 
 
 def read_ba_mixed():
+    """
+    Read results from test_ba_mixed
+    """
     df = pd.read_excel('output/mixed_only.xlsx')
     print(df.describe())
     
@@ -1146,9 +1238,14 @@ def read_ba_mixed():
 
 
 def read_ba_balance():
+    """
+    Reads the results from test_ba_balance
+    """
     df = pd.read_excel('output/balance_big.xlsx', sheet_name='Num no asymp')
     df2 = pd.read_excel('output/balance_big.xlsx', sheet_name='Asymp times')
     
+    #nonzero_df = df
+    #nonzero_df2 = df2
     nonzero_df = df[df > 0]
     nonzero_df2 = df2[df2 > 0]
     
@@ -1203,6 +1300,9 @@ def read_ba_balance():
 
 
 def example_balance():
+    """
+    Used to generate Figure 16
+    """
     def make_graph_clustered(g,k):
         for edge in g.edges():
             g.edges[edge]['correlation'] = 1
@@ -1242,17 +1342,3 @@ def example_balance():
 
 if __name__ == '__main__':
     plt.rcParams.update({'font.size': 17})
-    #test_ba_balance()
-    # g = recreate_graph('output/ba3')
-    # 
-    # num_negative = 0
-    # num_positive = 0
-    # for _, _, edge_weight in g.edges(data='correlation'):
-    #     if edge_weight < 0:
-    #         num_negative += 1
-    #     else:
-    #         num_positive += 1
-    # print(num_negative)
-    # print(num_positive)
-    
-    read_ba_balance()

@@ -3,6 +3,11 @@ from read_graph import recreate_graph
 import numpy as np
 
 
+"""
+Plot pretty graphs using pyvis. Generated Figure 9 using this.
+"""
+
+
 def test_graph_balance(adj):
     """	
     Return values:	

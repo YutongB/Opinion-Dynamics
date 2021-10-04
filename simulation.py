@@ -9,21 +9,30 @@ import os, sys
 import pandas as pd
 
 
-# TODO introduce Bayesian-like update rule to remove \mu
-# TODO let asymptotic learning be defined in terms of auto-correction with itself at consecutive times?
+"""
+Main purpose is run the automaton and store the prior at each iteration. The priors can then be fed to analyse.py
+to produce relevant plots.
+
+If you want to run an ensemble of simulations to collect statistics, better to use simulation_numba.py 
+"""
+
 
 
 class Simulation:
-    def __init__(self, graph, true_bias=0.5, tosses_per_iteration=10, output_direc='output/default', coin_obs_file=None, bias_len=21, asymp_time_threshold=100):
+    def __init__(self, graph, true_bias=0.6, tosses_per_iteration=1, output_direc='output/default', coin_obs_file=None, bias_len=21, asymp_time_threshold=100):
+        """
+        Supply coin_obs_file with an output folder to reuse the same sequence of coin tosses
+        Alternatively, directly assign the sequence of coin tosses to self.heads_list and self.tosses_list
+        """
+    
         # TODO remove bias_len and infer it from the length of the prior
         self.g = nx.Graph(graph)
         self.true_bias = true_bias
         self.tosses_per_iteration = tosses_per_iteration
         self.output_direc = output_direc
         self.bias_list = np.linspace(0, 1, bias_len)
-        self.changing_edges = []
         self.asymp_time_threshold = asymp_time_threshold
-        self.apparent_true_bias = np.ones(bias_len, dtype=float) / bias_len
+        self.beliefs_control = np.ones(bias_len, dtype=float) / bias_len
 
         if coin_obs_file is None:
             self.heads_list = []
@@ -42,38 +51,32 @@ class Simulation:
             self.g.nodes[node]['old prior'] = self.g.nodes[node]['prior'].copy()
 
 
-    def simulate_coin_toss(self, tosses=0, bias=0.5):
-        if tosses > 0:
-            return np.random.binomial(tosses, bias)
-        else:
-            return np.random.binomial(self.tosses_per_iteration, self.true_bias)
+    def simulate_coin_toss(self):
+        return np.random.binomial(self.tosses_per_iteration, self.true_bias)
 
 
     def calculate_coin_probability(self, num_heads, num_tosses):
         return scipy.stats.binom.pmf(num_heads, num_tosses, self.bias_list)
 
 
-    def observe_coin(self, same_obs=True):
+    def observe_coin(self):
         # observe coin once and update the priors
-        if same_obs:
-            num_heads = self.simulate_coin_toss()
-            # num_heads = int(self.true_bias * self.tosses_per_iteration)
-            prob = self.calculate_coin_probability(num_heads, self.tosses_per_iteration)
-            for node in self.g:
-                norm = np.sum(self.g.nodes[node]['prior'] * prob)
-                self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-                
-            norm = np.sum(self.apparent_true_bias * prob)
-            self.apparent_true_bias = self.apparent_true_bias * prob / norm
+        num_heads = self.simulate_coin_toss()
+        prob = self.calculate_coin_probability(num_heads, self.tosses_per_iteration)
+        for node in self.g:
+            norm = np.sum(self.g.nodes[node]['prior'] * prob)
+            self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
             
-
-        else:
-            raise NotImplementedError('Code for dealing with each node observing different tosses not implemented yet')
-
+        norm = np.sum(self.beliefs_control * prob)
+        self.beliefs_control = self.beliefs_control * prob / norm
+        
         return num_heads, self.tosses_per_iteration
 
 
     def blend_pos(self, learning_rate=0.25, method=0):
+        """
+        method == 0 is the method used in the paper. The others are for testing.
+        """
         if method == 0:  # weighted average
             for i in self.g:  # loop through nodes
                 self_pos = self.g.nodes[i]['self_pos'].copy()
@@ -140,30 +143,19 @@ class Simulation:
                 self_pos /= self_pos.sum()
                 
                 self.g.nodes[i]['prior'] = self_pos
+                
+        elif method == 3:
+            # convolution
+            print('a')
+            for i in self.g:
+                self_pos = self.g.nodes[i]['self_pos'].copy()
+                for j in self.g.neighbors(i):
+                    # TODO implement learning rate. For now, assume no effect from learning rate
+                    self_pos = np.convolve(self_pos, self.g.nodes[j]['self_pos'], mode='valid')
+                    
+                self_pos /= self_pos.sum()
+                self.g.nodes[i]['prior'] = self_pos
 
-                
-    def change_adjancency_matrix(self, fraction=0.25, include_self_loops=True, use_different_edges=False):
-        """
-        self_loops means A_{ij}, i=j
-        """
-        
-        # if the chosen edges have yet to be determined, determine them now
-        if len(self.changing_edges) == 0 or use_different_edges:
-            if include_self_loops:
-                relevant_edges = list(self.g.edges())
-            else:
-                relevant_edges = [edge for edge in self.g.edges() if edge[0] != edge[1]]
-                
-            # randomly select which edge to change
-            # NOTE: int() floors the argument for positive numbers
-            num_edges_to_change = int(len(relevant_edges) * fraction)
-            chosen_edges_indices = np.random.choice(len(relevant_edges), num_edges_to_change, replace=False)
-            self.changing_edges = [relevant_edges[i] for i in chosen_edges_indices]
-        
-        # now, actually change A_{ij}
-        for edge in self.changing_edges:
-            self.g.edges[edge]['correlation'] = np.random.random() * 2 - 1  # randomly pick from [-1, 1)
-        
 
     def write_prior(self):
         # save the new prior
@@ -174,7 +166,7 @@ class Simulation:
                 f.write('\n')
                 
         with open(f'{self.output_direc}/data/control.txt', 'a') as f:
-            for data in self.apparent_true_bias:
+            for data in self.beliefs_control:
                 f.write(str(data) + ' ')
             f.write('\n')
 
@@ -189,7 +181,7 @@ class Simulation:
                 f.write('\n')
                 
         with open(f'{self.output_direc}/data/control.txt', 'w+') as f:
-            for i in self.apparent_true_bias:
+            for i in self.beliefs_control:
                 f.write(str(i) + ' ')
             f.write('\n')
 
@@ -211,7 +203,6 @@ class Simulation:
                 f.write(f'{i}\n')
             
                 
-                
     def save_adjacency_matrix(self, t):
         with open(f'{self.output_direc}/data/adj/{t}.txt', 'w+') as f:
             f.write('Number of nodes: {}\n'.format(self.g.number_of_nodes()))
@@ -220,39 +211,28 @@ class Simulation:
                 
 
     def update_node_asymp(self, threshold=0.01):
-        reached = 0
+        """
+        Updates each node's 'asymp time' parameter and returns the number of nodes that asymps
+        """
+        num_asymp = 0
         for node in self.g:
             if np.all(np.abs(self.g.nodes[node]['prior'] - self.g.nodes[node]['old prior']) <= threshold * np.max(self.g.nodes[node]['old prior'])):
-                reached += 1
+                num_asymp += 1
                 if self.g.nodes[node]['asymp_time'][0] == 0:
                     self.g.nodes[node]['asymp_time'][1] = np.argmax(self.g.nodes[node]['prior']) / (len(self.bias_list) - 1)
-                    self.g.nodes[node]['asymp_time'][2] = np.argmax(self.apparent_true_bias) / (len(self.bias_list) - 1)
+                    self.g.nodes[node]['asymp_time'][2] = np.argmax(self.beliefs_control) / (len(self.bias_list) - 1)
                 self.g.nodes[node]['asymp_time'][0] += 1
-                if np.count_nonzero(self.g.nodes[node]['prior'] > 0.1) > 1 and self.g.nodes[node]['asymp_time'][0] >= self.asymp_time_threshold:
-                    print('Ayy')
             else:
-                self.g.nodes[node]['asymp_time'] = [0, -1, -1]
+                self.g.nodes[node]['asymp_time'] = [0, -1, -1]  # (num consecutive t in asymp, mode, apparent mode)
                 self.g.nodes[node]['old prior'] = self.g.nodes[node]['prior'].copy()
         
-        # reached = 0
-        # for node in self.g:
-        #     if self.g.nodes[node]['asymp_time'][0] >= self.asymp_time_threshold or np.all(np.abs(self.g.nodes[node]['prior'] - self.g.nodes[node]['old prior']) <= threshold * np.max(self.g.nodes[node]['old prior'])):
-        #         reached += 1
-        #         if self.g.nodes[node]['asymp_time'][0] == 0:
-        #             self.g.nodes[node]['asymp_time'][1] = np.argmax(self.g.nodes[node]['prior']) / (len(self.bias_list) - 1)
-        #             self.g.nodes[node]['asymp_time'][2] = np.argmax(self.apparent_true_bias) / (len(self.bias_list) - 1)
-        #         self.g.nodes[node]['asymp_time'][0] += 1
-        #         if np.count_nonzero(self.g.nodes[node]['prior'] > 0.1) > 1:
-        #             print('Ayy')
-        #     else:
-        #         self.g.nodes[node]['asymp_time'] = [0, -1, -1]
-        #         self.g.nodes[node]['old prior'] = self.g.nodes[node]['prior'].copy()
-        
-        
-        return reached
+        return num_asymp
         
 
     def do_simulation(self, num_iter=10, learning_rate=0.25, blend_method=0):
+        """
+        Runs the automaton and returns the number of time steps to asymp, 0 if did not asymp within num_iter
+        """
         self.save_graph()
         
         t = 1
@@ -264,14 +244,14 @@ class Simulation:
             while t <= len(self.heads_list):
             # for t in range(len(self.heads_list)):
                 if t % 100 == 0:
-                    print('Iteration {}'.format(t))
+                    print('Iteration {}'.format(t), end='\r')
                 prob = self.calculate_coin_probability(self.heads_list[t-1], self.tosses_list[t-1])
                 for node in self.g:
                     norm = np.sum(self.g.nodes[node]['prior'] * prob)
                     self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
                     
-                norm = np.sum(self.apparent_true_bias * prob)
-                self.apparent_true_bias = self.apparent_true_bias * prob / norm
+                norm = np.sum(self.beliefs_control * prob)
+                self.beliefs_control = self.beliefs_control * prob / norm
 
                 self.blend_pos(learning_rate=learning_rate, method=blend_method)
                 self.write_prior()
@@ -289,13 +269,13 @@ class Simulation:
                 t += 1
                 
             if t > len(self.heads_list) and t <= num_iter:
+                print('')
                 print('All predetermined coin tosses used. Will now generate new tosses')
 
         while t <= num_iter:
             # simulate our own coin tosses.
-            #for t in range(num_iter):
             if t % 100 == 0:
-                print('Iteration {}'.format(t))
+                print('Iteration {}'.format(t), end='\r')
             num_heads, num_tosses = self.observe_coin()
             self.blend_pos(learning_rate=learning_rate, method=blend_method)
             self.heads_list.append(num_heads)
@@ -305,89 +285,30 @@ class Simulation:
 
                 asymptotic_learning_time += 1
                 if asymptotic_learning_time >= self.asymp_time_threshold:
+                    print('')
                     print(f'Reached asymptotic learning at iteration {t}.')
                     self.save_tosses()
                     return t
             else:
                 asymptotic_learning_time = 0
             t += 1
-        
-        self.save_tosses()
-        return 0
-
             
-    def do_simulation_with_dynamic_network(self, num_iter=10, learning_rate=0.25, blend_method=0, use_different_edges=False, frac=0.2):
-        self.save_graph()
-        
-        t = 1
-        asymptotic_learning_time = 0
-
-        if len(self.heads_list) > 0:
-            # heads/tosses already determined, so follow that
-            print('Using predetermined coin tosses')
-            while t <= len(self.heads_list):
-            # for t in range(len(self.heads_list)):
-                if t % 100 == 0:
-                    print('Iteration {}'.format(t))
-                prob = self.calculate_coin_probability(self.heads_list[t-1], self.tosses_list[t-1])
-                for node in self.g:
-                    norm = np.sum(self.g.nodes[node]['prior'] * prob)
-                    self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-                    
-                norm = np.sum(self.apparent_true_bias * prob)
-                self.apparent_true_bias = self.apparent_true_bias * prob / norm
-
-                self.blend_pos(learning_rate=learning_rate, method=blend_method)
-                self.write_prior()
-                self.save_adjacency_matrix(t)
-                    
-                if self.update_node_asymp() == self.g.number_of_nodes():
-                    asymptotic_learning_time += 1
-                    if asymptotic_learning_time >= self.asymp_time_threshold:
-                        print(f'Reached asymptotic learning at iteration {t}.')
-                        self.heads_list = self.heads_list[:t]
-                        self.tosses_list = self.tosses_list[:t]
-                        self.save_tosses()
-                        return t
-                else:
-                    asymptotic_learning_time = 0
-                t += 1
-                self.change_adjancency_matrix(fraction=frac, include_self_loops=True, use_different_edges=use_different_edges)
-                
-            if t > len(self.heads_list) and t <= num_iter:
-                print('All predetermined coin tosses used. Will now generate new tosses')
-
-        while t <= num_iter:
-            # simulate our own coin tosses.
-            #for t in range(num_iter):
-            if t % 100 == 0:
-                print('Iteration {}'.format(t))
-            num_heads, num_tosses = self.observe_coin()
-            self.blend_pos(learning_rate=learning_rate, method=blend_method)
-            self.heads_list.append(num_heads)
-            self.tosses_list.append(num_tosses)
-            self.write_prior()
-            self.save_adjacency_matrix(t)
-            if self.update_node_asymp() == self.g.number_of_nodes():
-
-                asymptotic_learning_time += 1
-                if asymptotic_learning_time >= self.asymp_time_threshold:
-                    print(f'Reached asymptotic learning at iteration {t}.')
-                    self.save_tosses()
-                    return t
-            else:
-                asymptotic_learning_time = 0
-            t += 1
-            self.change_adjancency_matrix(fraction=frac, include_self_loops=True, use_different_edges=use_different_edges)
-
+        print('')
         self.save_tosses()
         return 0
 
     def do_simulation_without_signal(self, num_iter=10, learning_rate=0.25, blend_method=0):
+        """
+        Same as do_simulation, but there is no coin tosses
+        """
         self.heads_list = []
         self.tosses_list = []
         self.save_graph()
-        for t in range(num_iter):
+        
+        t = 1
+        asymptotic_learning_time = 0
+        
+        while t <= num_iter:
             if t % 100 == 0:
                 print('Iteration {}'.format(t))
             for i in self.g:
@@ -398,13 +319,27 @@ class Simulation:
             self.blend_pos(learning_rate=learning_rate, method=blend_method)
             self.write_prior()
             if self.update_node_asymp() == self.g.number_of_nodes():
-                print(f'Reached asymptotic learning at iteration {t}.')
-                break
+
+                asymptotic_learning_time += 1
+                if asymptotic_learning_time >= self.asymp_time_threshold:
+                    print(f'Reached asymptotic learning at iteration {t}.')
+                    self.save_tosses()
+                    return t
+            else:
+                asymptotic_learning_time = 0
+            
+            t += 1
 
         self.save_tosses()
         
     def do_simulation_without_print_and_save(self, num_iter=1000, learning_rate=0.25, blend_method=0):
-        # return True is asymptotic learning is achieved, False otherwise
+        """
+        Same as do_simulation, except we don't write any information.
+        simulation_numba.py now exists, so use that instead for coputational speed
+        
+        This function is still here so nothing in engine.py breaks for now
+        """
+        
         t = 1
         asymptotic_learning_time = 0
 
@@ -418,8 +353,8 @@ class Simulation:
                     self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob 
                     self.g.nodes[node]['self_pos'] = self.g.nodes[node]['self_pos'] / self.g.nodes[node]['self_pos'].sum()
                     
-                norm = np.sum(self.apparent_true_bias * prob)
-                self.apparent_true_bias = self.apparent_true_bias * prob / norm
+                norm = np.sum(self.beliefs_control * prob)
+                self.beliefs_control = self.beliefs_control * prob / norm
 
                 self.blend_pos(learning_rate=learning_rate, method=blend_method)
                 if self.update_node_asymp() == self.g.number_of_nodes():
@@ -447,49 +382,7 @@ class Simulation:
             t += 1
             
         return 0
-        
-    def do_simulation_dynamic_and_no_save(self, num_iter=1000, learning_rate=0.25, blend_method=0, use_different_edges=False, frac=0.2):
-        # return True is asymptotic learning is achieved, False otherwise
-        t = 1
-        asymptotic_learning_time = 0
-
-        if len(self.heads_list) > 0:
-            # heads/tosses already determined, so follow that
-            while t <= len(self.heads_list):
-                prob = self.calculate_coin_probability(self.heads_list[t-1], self.tosses_list[t-1])
-                for node in self.g:
-                    norm = np.sum(self.g.nodes[node]['prior'] * prob)
-                    self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-
-                self.blend_pos(learning_rate=learning_rate, method=blend_method)
-                if self.update_node_asymp() == self.g.number_of_nodes():
-                    asymptotic_learning_time += 1
-                    if asymptotic_learning_time >= self.asymp_time_threshold:
-                        self.heads_list = self.heads_list[:t]
-                        self.tosses_list = self.tosses_list[:t]
-                        return t
-                else:
-                    asymptotic_learning_time = 0
-                t += 1
-                self.change_adjancency_matrix(fraction=frac, include_self_loops=True, use_different_edges=use_different_edges)
-
-        while t <= num_iter:
-            # simulate our own coin tosses.
-            num_heads, num_tosses = self.observe_coin()
-            self.heads_list.append(num_heads)
-            self.tosses_list.append(num_tosses)
-            self.blend_pos(learning_rate=learning_rate, method=blend_method)
-            if self.update_node_asymp() == self.g.number_of_nodes():
-                asymptotic_learning_time += 1
-                if asymptotic_learning_time >= self.asymp_time_threshold:
-                    return t
-            else:
-                asymptotic_learning_time = 0
-            t += 1
-            self.change_adjancency_matrix(fraction=frac, include_self_loops=True, use_different_edges=use_different_edges)
-            
-        return 0
-            
+    
     def do_simulation_without_signal_and_saves(self, num_iter=10, learning_rate=0.25, blend_method=0):
         for t in range(num_iter):
             for i in self.g:
@@ -498,82 +391,11 @@ class Simulation:
             if self.update_node_asymp() == self.g.number_of_nodes():
                 print(f'Reached asymptotic learning at iteration {t}.')
                 break
-                
-    def do_simulation_and_check_individual_asymp(self, num_iter=10, learning_rate=0.25, blend_method=0, save_info=True):
-        if save_info:
-            self.save_graph()
-        
-        t = 1
-        asymptotic_learning_time = 0
-        
-        current_asymp_number = 0
 
-        if len(self.heads_list) > 0:
-            # heads/tosses already determined, so follow that
-            print('Using predetermined coin tosses')
-            while t <= len(self.heads_list):
-            # for t in range(len(self.heads_list)):
-                if t % 100 == 0:
-                    print('Iteration {}'.format(t))
-                prob = self.calculate_coin_probability(self.heads_list[t-1], self.tosses_list[t-1])
-                for node in self.g:
-                    norm = np.sum(self.g.nodes[node]['prior'] * prob)
-                    self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
+    """
+    These functions should really belong to analyse.py
+    """
 
-                self.blend_pos(learning_rate=learning_rate, method=blend_method)
-                if save_info:
-                    self.write_prior()
-                    
-                number_asymp = self.update_node_asymp()
-                if number_asymp > current_asymp_number:
-                    print(f'{number_asymp} nodes achieved asymptotic learning at t={t}')
-                    current_asymp_number = number_asymp
-                    
-                if number_asymp == self.g.number_of_nodes():
-                    asymptotic_learning_time += 1
-                    if asymptotic_learning_time >= self.asymp_time_threshold:
-                        print(f'Reached asymptotic learning at iteration {t}.')
-                        self.heads_list = self.heads_list[:t]
-                        self.tosses_list = self.tosses_list[:t]
-                        if save_info:
-                            self.save_tosses()
-                        return
-                else:
-                    asymptotic_learning_time = 0
-                t += 1
-            if t > len(self.heads_list) and t <= num_iter:
-                print('All predetermined coin tosses used. Will now generate new tosses')
-
-        while t <= num_iter:
-            # simulate our own coin tosses.
-            #for t in range(num_iter):
-            if t % 100 == 0:
-                print('Iteration {}'.format(t))
-            num_heads, num_tosses = self.observe_coin()
-            self.blend_pos(learning_rate=learning_rate, method=blend_method)
-            self.heads_list.append(num_heads)
-            self.tosses_list.append(num_tosses)
-            if save_info:
-                self.write_prior()
-                
-            number_asymp = self.update_node_asymp()
-            if number_asymp > current_asymp_number:
-                print(f'{number_asymp} nodes achieved asymptotic learning at t={t}')
-                current_asymp_number = number_asymp    
-            
-            if number_asymp == self.g.number_of_nodes():
-                asymptotic_learning_time += 1
-                if asymptotic_learning_time >= self.asymp_time_threshold:
-                    print(f'Reached asymptotic learning at iteration {t}.')
-                    break
-            else:
-                asymptotic_learning_time = 0
-            t += 1
-
-        if save_info:
-            self.save_tosses()
-    
-    
     @property
     def get_width(self):
         # find out how far the distribution of belief tilts away from the true bias. Also finds out if there is imbalance between the widths
@@ -649,7 +471,7 @@ class Simulation:
     
     @property
     def get_apparent_true_bias(self):
-        return self.apparent_true_bias
+        return self.beliefs_control
 
 
 def put_smaller_number_first(number):
@@ -757,7 +579,11 @@ def add_self_loops(g, add_weights=True):
 
     return g
 
+
 class HiddenPrints:
+    """
+    This just hides all print statements
+    """
     def __enter__(self):
         self._original_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
@@ -765,7 +591,23 @@ class HiddenPrints:
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout.close()
         sys.stdout = self._original_stdout
-        
+
+
+def extend_simulation(input_folder, output_folder='', t=0):
+    """
+    Given a simulation folder, extends the simulation with identical priors and coin tosses up to t
+    """
+    g = recreate_graph(input_folder, 0)
+    if not output_folder:
+        output_folder = f'{input_folder}_extended{t}'
+    
+    simulator = Simulation(g, true_bias=0.6, tosses_per_iteration=1, output_direc=output_folder, coin_obs_file=input_folder, bias_len=21, asymp_time_threshold=t)
+    
+    if t == 0:
+        t = len(simulator.heads_list) * 10
+    simulator.asymp_time_threshold = t
+    simulator.do_simulation(num_iter=t, blend_method=0, learning_rate=0.25)
+    
 
 def main():
     repetitions = 10

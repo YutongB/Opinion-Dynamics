@@ -7,6 +7,14 @@ import timeit
 from PIL import Image
 
 
+"""
+Intended to store various fnctions related to generating networks
+I actually didn't even use any of these graph generating functions for the paper
+
+Somehow it also includes basic visualisation from visualise_graph
+"""
+
+
 # convinience function for testing cycles
 def group_list_elements_into_tuples(l, size=2, cycle_back=True):
     """
@@ -97,7 +105,6 @@ def two_opposing_groups(n1=10, n2=10, p1=0.5, p2=0.5, p12=0.5):
 
 def complete_opposing_groups(num_nodes=10, num_groups=2):
     """
-    TODO complete this
     num_nodes: can be int of list of ints
                int: the total number of nodes the graph has
                list: each element corresponds to the number of nodes each group has
@@ -206,23 +213,28 @@ def ring_graph(n=3, negative_edges=1):
             
     return g
 
+"""
+Graph visualisation
+"""
 
     
 def visualise_graph(g, color_edges=False, layout=None, save_file=''):
     if layout is None:
+        # seed for consistent layout
         layout = nx.spring_layout(g, seed=100)
     fig = plt.figure(figsize=(4,3.5))
     #fig = plt.figure()
     #fig = plt.figure(figsize=(3,3))
     ax = fig.add_axes((0,0,1,1))
     ax.set_axis_off()
+    
+    labels = {}
+    for i in range(g.number_of_nodes()):
+        labels[i] = str(i+1)
 
     if color_edges:
         friend_edges = [(x[0],x[1]) for x in g.edges.data('correlation') if x[2] == 1]
         enemy_edges = [(x[0],x[1]) for x in g.edges.data('correlation') if x[2] == -1]
-        labels = {}
-        for i in range(g.number_of_nodes()):
-            labels[i] = str(i+1)
         node_size = 450
         font_size = int(node_size/300 * 11)
         nx.draw_networkx_nodes(g, layout, node_color='white', edgecolors='k', ax=ax, node_size=node_size)
@@ -231,9 +243,9 @@ def visualise_graph(g, color_edges=False, layout=None, save_file=''):
         nx.draw_networkx_edges(g, layout, edgelist=enemy_edges, width=2, edge_color='r', style='dashed', ax=ax, node_size=node_size)
     else:
         d = dict(g.degree)
-        nx.draw(g, nodelist=d.keys(), node_size=[v * 10 for v in d.values()])
-
-        # nx.draw(g, pos=layout, ax=ax, with_labels=True, node_color='white', edgecolors='k')
+        #nx.draw(g, nodelist=d.keys(), node_size=[v * 10 for v in d.values()])
+        
+        nx.draw(g, pos=layout, ax=ax, with_labels=True, node_color='white', edgecolors='k', node_size=1000, font_size=17, labels=labels)
         
     # ax.set_xlim(-0.6, 0.6)
     # ax.set_ylim(-0.6, 0.6)
@@ -246,6 +258,8 @@ def visualise_graph(g, color_edges=False, layout=None, save_file=''):
 
 def test_graph_balance(g, verbose=False, complete_graph=False):
     """	
+    Warning: very slow for big graphs, due to huge number of cycles!
+    
     Return values:	
     -1: Unbalanced	
     0 : Weakly balanced	
@@ -333,6 +347,14 @@ def BA_balance():
     visualise_graph(g, True)
 
 
+def get_circular_layout(start_theta=np.pi/2, num_points=3):
+    def point_on_circle(theta):
+        return 0.5* np.cos(theta), 0.5* np.sin(theta)
+        
+    theta_list = np.linspace(start_theta, start_theta + 2* np.pi, num_points+1)[:-1]
+    return dict(zip(range(num_points), (point_on_circle(i) for i in theta_list)))
+    
+
 def draw_triads():
     g_list = [nx.complete_graph(3) for i in range(4)]
     possible_edge_weight_combo = list(itertools.combinations_with_replacement([1,-1], 3))
@@ -344,12 +366,6 @@ def draw_triads():
     for edge in g_list[1].edges():
         g_list[1].edges[edge]['correlation'] = 1
     g_list[1].edges[0,1]['correlation'] = -1
-    def point_on_circle(theta):
-        return 0.5* np.cos(theta), 0.5* np.sin(theta)
-        
-    def get_circular_layout(start_theta):
-        theta_list = np.linspace(start_theta, start_theta + 2* np.pi, 4)[:-1]
-        return dict(zip(range(3), (point_on_circle(i) for i in theta_list)))
     
     file_list = [f'tri{count}.png' for count in range(len(g_list))]
     for count, g in enumerate(g_list):
@@ -363,6 +379,13 @@ def draw_triads():
         
 
 if __name__ == '__main__':
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
-    print(len(colors))
+    plt.rcParams.update({'font.size': 17})
+    g = nx.Graph()
+    for i in range(4):
+        g.add_node(i)
+        
+    g.add_edge(0,1)
+    g.add_edge(2,1)
+    g.add_edge(3,1)
+    g.add_edge(2,3)
+    visualise_graph(g, layout=get_circular_layout(num_points=4))

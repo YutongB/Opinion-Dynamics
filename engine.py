@@ -12,7 +12,34 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 
+"""
+Used whenever I need to use something from simulation.py and analyse.py at the same time.
+Most functions here are obselete, now that simulation_numba.py exists.
+They're only used when I need a plot of mean vs time, like Figure 2, of one particular simulation
+
+If you need to do that, the way to do it is like this:
+
+save_folder = 'output/default'
+g = nx.barabasi_albert_graph(100, 3, seed=100)
+g = simulation.randomise_prior(g)  # or some other way of filling in g.nodes[node]['prior']
+simulator = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, output_direc=save_folder, coin_obs_file=None, bias_len=21, asymp_time_threshold=100)
+simulator.do_simulation(num_iter=10000, blend_method=0)
+analyser = analyse.DataAnalyser(save_folder).produce_plots()
+
+If you want to provide the coin tosses, either fill in coin_obs_file=reference_folder to copy the coin tosses of a previous simulation
+Or fill in simulator.heads_list = heads_list and
+simulator.tosses_list = np.ones(heads_list.shape, dtype=int)
+before calling simulator.do_simulation
+"""
+
+
 class HiddenPrints:
+    """
+    Context manager to ignore any print statements. Usage:
+    with HiddenPrints():
+        print('Yo')  # this won't actually print anything
+    print('YOYO')  # Now this will print
+    """
     def __enter__(self):
         self._original_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
@@ -417,32 +444,72 @@ def two_nodes_read_results(excel_file='results.xlsx'):
 
 
 def two_nodes_test():
+    folder1 = 'output/temp'
+
     bias_len = 21
     bias_list = np.linspace(0,1,bias_len)
     g = nx.complete_graph(2)
     for edge in g.edges():
-        g.edges[edge]['correlation'] = 1
-    g.nodes[1]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.0, stddev=0.1)
-    g.nodes[0]['prior'] = simulation.gaussian_stddev(bias_list, mean=1.0, stddev=0.1)
-    simulator = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=bias_len)
-    simulator.do_simulation(num_iter=10000, blend_method=0)
-    analyser = analyse.DataAnalyser()
-    analyser.find_belief_convergence()
-    analyser.produce_plots()
-    
-    g = recreate_graph('output/default', 0)
-    for edge in g.edges():
         g.edges[edge]['correlation'] = -1
-    simulator2 = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=bias_len, output_direc='output/default2')
-    simulator2.heads_list = simulator.heads_list
-    simulator2.tosses_list = simulator.tosses_list
-    simulator2.do_simulation(num_iter=10000, blend_method=0)
-    analyser = analyse.DataAnalyser('output/default2')
-    analyser.find_belief_convergence()
-    analyser.produce_plots()
+    # g.nodes[1]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.25, stddev=0.1)
+    # g.nodes[0]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.75, stddev=0.1)
+    g.nodes[1]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.65, stddev=10000000)
+    g.nodes[0]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.55, stddev=10000000)
     
-    print(simulator2.get_asymp_time)
-    print(simulator2.get_proper_asymp_time)
+    simulator = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=bias_len, output_direc=folder1)
+    simulator.do_simulation(num_iter=10000, blend_method=0)
+    analyser = analyse.DataAnalyser(folder1)
+    #analyser.find_belief_convergence()
+    analyser.produce_plots()
+    print(simulator.get_asymp_time)
+    print(simulator.get_proper_asymp_time)
+    
+    # g = recreate_graph('output/default', 0)
+    # for edge in g.edges():
+    #     g.edges[edge]['correlation'] = -1
+    # simulator2 = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=bias_len, output_direc='output/default2')
+    # simulator2.heads_list = simulator.heads_list
+    # simulator2.tosses_list = simulator.tosses_list
+    # simulator2.do_simulation(num_iter=10000, blend_method=0)
+    # analyser = analyse.DataAnalyser('output/default2')
+    # #analyser.find_belief_convergence()
+    # #analyser.produce_plots()
+    # 
+    # print(simulator2.get_asymp_time)
+    # print(simulator2.get_proper_asymp_time)
+    
+    # yeet_counter = 0
+    # same_counter = 0
+    # 
+    # for _ in range(100):
+    #     bias_len = 21
+    #     bias_list = np.linspace(0,1,bias_len)
+    #     g = nx.complete_graph(2)
+    #     for edge in g.edges():
+    #         g.edges[edge]['correlation'] = -1
+    #     # g.nodes[1]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.25, stddev=0.1)
+    #     # g.nodes[0]['prior'] = simulation.gaussian_stddev(bias_list, mean=0.75, stddev=0.1)
+    #     g.nodes[1]['prior'] = simulation.gaussian_stddev(bias_list, mean=np.random.random(), stddev=int(1e7))
+    #     g.nodes[0]['prior'] = simulation.gaussian_stddev(bias_list, mean=np.random.random(), stddev=int(1e7))
+    #     
+    #     if np.all(g.nodes[0]['prior'] == g.nodes[1]['prior']) or np.all(g.nodes[0]['prior'][0] == g.nodes[0]['prior']) or np.all(g.nodes[1]['prior'][0] == g.nodes[1]['prior']):
+    #         continue
+    #     
+    #     simulator = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=bias_len, output_direc=folder1)
+    #     with HiddenPrints():
+    #         simulator.do_simulation(num_iter=10000, blend_method=0)
+    #     asymp_time = simulator.get_asymp_time
+    #     
+    #     if not (asymp_time[0][1] == 0.6 and asymp_time[1][1] != 0.6):
+    #         print(asymp_time)
+    #         yeet_counter += 1
+    #         
+    #     if asymp_time[0][1] == asymp_time[1][1]:
+    #         print('What the hey')
+    #         same_counter += 1
+    # 
+    # print(yeet_counter)
+    # print(same_counter)
     
 
 def recreate_simulation():
@@ -767,22 +834,18 @@ def test_unbalanced_triad(method=0):
 
 if __name__ == '__main__':
     plt.rcParams.update({'font.size': 17})
-    g = recreate_graph('output/ba3', 0)
-    edge_list = list(g.edges())
-    np.random.shuffle(edge_list)
-    midpoint = len(edge_list) // 2
-    for count, edge in enumerate(edge_list):
-        if count < midpoint:
-            g.edges[edge]['correlation'] = 1
-        else:
-            g.edges[edge]['correlation'] = -1
-    simulator3 = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=21, output_direc='output/temp2', coin_obs_file='output/ba3')
-    simulator3.do_simulation(num_iter=10000, blend_method=0)
-    analyse.DataAnalyser('output/temp2').produce_plots()
+    # g = recreate_graph('output/ba3', 0)
+    # edge_list = list(g.edges())
+    # np.random.shuffle(edge_list)
+    # midpoint = len(edge_list) // 2
+    # for count, edge in enumerate(edge_list):
+    #     if count < midpoint:
+    #         g.edges[edge]['correlation'] = 1
+    #     else:
+    #         g.edges[edge]['correlation'] = -1
+    # simulator3 = simulation.Simulation(g, true_bias=0.6, tosses_per_iteration=1, bias_len=21, output_direc='output/temp2', coin_obs_file='output/ba3')
+    # simulator3.do_simulation(num_iter=10000, blend_method=0)
+    # analyse.DataAnalyser('output/temp2').produce_plots()
     
+    two_nodes_test()
     
-"""
-https://stackoverflow.com/questions/2572916/numpy-smart-symmetric-matrix
-
-https://networkx.org/documentation/stable/reference/generated/networkx.convert_matrix.from_numpy_array.html?highlight=adjacency
-"""

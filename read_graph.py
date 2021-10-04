@@ -7,12 +7,18 @@ import numpy as np
 
 
 def create_output_directory(parent_direc):
+    """
+    Creates al the required subdirectories for simulation.py 
+    """
     direc_list = ['converge', 'data', 'mean', 'mode', 'network', 'prior', 'stddev', 'time_series']
     for direc in direc_list:
         os.makedirs(f'{parent_direc}/{direc}', exist_ok=True)
 
 
 def remove_files(direc, starts_with='', ends_with=''):
+    """
+    Deletes every file in the directory. Dangerous!
+    """
     file_list = [f for f in os.listdir(direc) if (f.endswith(ends_with) and f.startswith(starts_with))]
     for f in file_list:
         os.remove(os.path.join(direc, f))
@@ -49,6 +55,10 @@ def extract_true_coin_bias(direc):
 
 
 def recreate_graph(direc, prior_info=-2):
+    """
+    Recontructs the graph and if prior_info > -2, fills up the nodes' prior parameter at time=prior_info
+    prior_info=-1 means final time
+    """
     number_of_nodes, time_list, bias_list = extract_basic_info(direc)
     g = nx.Graph()
 
@@ -77,13 +87,22 @@ def recreate_graph(direc, prior_info=-2):
 
 
 def extract_prior(direc, node=0, t=0):
-    # NOTE: highly inefficient if the whole text file will eventually be used
+    """
+    Returns the prior of a node at a particular time
+    NOTE: highly inefficient if the whole text file will eventually be used.
+    In this case, use extract_prior_all_time instead
+    """
     with open(f'{direc}/data/node{node}.txt', 'r') as f:
         lines = f.readlines()
         return np.array([float(data) for data in lines[t].split()])
         
 
 def extract_prior_all_time(direc, node=0):
+    """
+    Returns the prior of a node for all time steps
+    Return shape is [number of time steps, number of theta points]
+    """
+    
     data = []
     with open(f'{direc}/data/node{node}.txt', 'r') as f:
         lines = f.readlines()
@@ -110,7 +129,11 @@ def read_coin_observations(file):
 
 
 def get_asymp_info(direc):
-    # returns ( list of asymp_time, list of asymp_median)
+    """
+    Read data from the directory's asymp.txt file
+    NOTE: the data in asymp.txt is not sorted according to node label, but instead who asymps first
+    ie the first entry is NOT the first node!
+    """
     with open(f'{direc}/data/asymp.txt', 'r') as f:
         lines = f.readlines()
         

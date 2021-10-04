@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator  # to set plot ticks to integers
 from matplotlib.collections import LineCollection
 from matplotlib.widgets import Button, Slider
+from matplotlib.ticker import StrMethodFormatter
 from read_graph import extract_basic_info, remove_files, extract_prior, recreate_graph, extract_true_coin_bias, extract_prior_all_time, read_coin_observations, get_asymp_info
 import timeit
 from PIL import Image
@@ -18,46 +19,21 @@ import os
 import pandas as pd
 
 
-# TODO extract_prior() is very inefficient, because opening a file is costly. Replace with something that opens one file only once
+"""
+Plots the data written by simulation.py
+I mainly use the produce_plot function. Which is a mess.
 
+NOTE: the default matplotlib backend on my computer, TkAgg, has memory issues when opening a lot of figures, 
+even if calling plt.close(). If you are going to produce a lot of plots, call matplotlib.use('Agg') first.
+The Agg backend does not have memory issues, but it disallows interactive plotting such as plt.show().
 
-def multiline(xs, ys, c, ax=None, **kwargs):
-    """Plot lines with different colorings
+Some useful functions from the DataAnalyser class is:
 
-    Parameters
-    ----------
-    xs : iterable container of x coordinates
-    ys : iterable container of y coordinates
-    c : iterable container of numbers mapped to colormap
-    ax (optional): Axes to plot on.
-    kwargs (optional): passed to LineCollection
+get_least_confident_node(time). Prints a list of the ten nodes with the highest stddev at t=time
 
-    Notes:
-        len(xs) == len(ys) == len(c) is the number of line segments
-        len(xs[i]) == len(ys[i]) is the number of points for each line (indexed by i)
-
-    Returns
-    -------
-    lc : LineCollection instance.
-    """
-
-    # find axes
-    ax = plt.gca() if ax is None else ax
-
-    # create LineCollection
-    segments = [np.column_stack([x, y]) for x, y in zip(xs, ys)]
-    lc = LineCollection(segments, **kwargs)
-
-    # set coloring of line segments
-    #    Note: I get an error if I pass c as a list here... not sure why.
-    lc.set_array(np.asarray(c))
-
-    # add lines to axes and rescale 
-    #    Note: adding a collection doesn't autoscalee xlim/ylim
-    ax.add_collection(lc)
-    ax.autoscale()
-    return lc
-
+check_prior_at_time(node, t). Plots the beliefs of node and all its neighbours, coded according to
+whether it's an ally or opponent. Then, you can click on the plot to change the time.
+"""
 
 class DataAnalyser:
 
@@ -137,7 +113,7 @@ class DataAnalyser:
     def produce_plots(self):
         number_of_nodes, time_list, bias_list = extract_basic_info(self.direc)
         num_iter = len(time_list)
-        control = 2
+        control = 0  # control evolves the beliefs of the speficied agent assuming it's isolated from every other agent
 
         if num_iter > 10:
             time_spacing = num_iter // 100 * 5  # every 100 t, show only 5 of them
@@ -149,7 +125,7 @@ class DataAnalyser:
 
         else:
             chopped_time_list = time_list
-
+            
         # overplot the posteriors
         remove_files(f'{self.direc}/prior', ends_with='.png')
         for t in chopped_time_list:
@@ -164,16 +140,15 @@ class DataAnalyser:
             ax.set_xlabel('Bias')
             ax.set_xlabel(r'$\theta$')
             ax.set_ylabel('Probability')
+            ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.2f}'))
             ax.grid(linestyle='--', axis='both')
-            if t == 0:
-                ax.set_title('Initial beliefs')
-            else:
-                ax.set_title(r'$t$ = {}'.format(t))
+            ax.set_title(r'$t$ = {}'.format(t))
 
             if number_of_nodes < 8:
+                #ax.legend(loc='upper left')
                 ax.legend()
             # plt.tick_params(axis='y', which='both', left=False, right=False, top=False, bottom=False, labelleft=False)
-            plt.tight_layout()
+            fig.tight_layout()
             fig.savefig(f'{self.direc}/prior/{self.file_name_prepend}t={t}.png')
             plt.close()
             
@@ -273,10 +248,11 @@ class DataAnalyser:
             new_dict[param] = np.transpose(data)
         param_dict = new_dict
         
-        # color_cycle = plt.rcParams["axes.prop_cycle"].by_key()['color']
+        color_cycle = plt.rcParams["axes.prop_cycle"].by_key()['color']
         for param_name, data in param_dict.items():
             fig, ax = plt.subplots()
-            # ax.plot(time_list, control_dict[param_name], label='Control', ls='--', color=color_cycle[-3])
+            # # Uncomment to plot control
+            #ax.plot(time_list, control_dict[param_name], label='Control', ls='--', color=color_cycle[-3])
             #ax.plot(time_list, control_dict[param_name], label='Control', ls='--')
             for node, node_data in enumerate(data):
                 #ax.plot(time_list, node_data, label=f'Agent {node+1}', color=color_cycle[node])
@@ -287,6 +263,8 @@ class DataAnalyser:
                 ax.set_ylabel(r'$\langle \theta \rangle$')
             elif param_name == 'stddev':
                 ax.set_ylabel(r'$\sqrt{\langle(\theta - \langle \theta \rangle)^2 \rangle}$')
+                # ax.set_xscale('log')  # log scale 
+                # ax.set_yscale('log')  # log scale 
             
             if param_name != 'stddev':
                 start, end = ax.get_ylim()
@@ -296,12 +274,15 @@ class DataAnalyser:
                 
             else:
                 pass
+                # # uncomment for power law fitting stuff for the stddev
                 # params = self.fit_power_law()
                 # label = r'$\propto t ^ {' + f'{params[1]:.2f}' + r'}$'
-                # plot_time = 3
-                # ax.plot(time_list[plot_time:], params[0] * time_list[plot_time:] ** params[1], label=label, ls='--')
-                # ax.plot(time_list[plot_time:], params[0] * time_list[plot_time:] ** params[1], label=label, ls='--', color=color_cycle[number_of_nodes])
-                # ax.set_ylabel('Standard deviation')
+                # plot_time_start = 1
+                # plot_time_end = -1
+                # ax.plot(time_list[plot_time_start:plot_time_end], params[0] * time_list[plot_time_start:plot_time_end] ** params[1], label=label, ls='-.')
+                # ax.set_ylim(bottom=1e-4, top=3e-1)
+                # ax.yaxis.set_ticks_position('both')
+                # ax.set_xlim(right=time_list[-1])
             
             if number_of_nodes < 8:
                 ax.legend()
@@ -485,7 +466,7 @@ class DataAnalyser:
         output_path = f'{self.direc}/image.gif'
 
         img, *imgs = [Image.open(f) for f in ns.natsorted(glob.glob(input_path))]
-        img.save(fp=output_path, format='GIF', append_images=imgs, save_all=True, duration=200, loop=0)
+        img.save(fp=output_path, format='GIF', append_images=imgs, save_all=True, duration=150, loop=0)
         
     def find_width(self):
         # find out how far the distribution of belief tilts away from the true bias. Also finds out if there is imbalance between the widths
@@ -597,7 +578,6 @@ class DataAnalyser:
             print(np.argmax(a))
         
     def find_belief_oscillation(self, node=2, asymp_time=1200):
-        # 1117
         number_of_nodes, time_list, bias_list = extract_basic_info(self.direc)
         print(len(time_list))
         
@@ -722,6 +702,9 @@ class DataAnalyser:
         plt.show()
     
     def plot_specific_nodes(self, nodes=1):
+        """
+        Check the mean of the specific node, and its neighbour
+        """
         if isinstance(nodes, int):
             nodes = [nodes]
         
@@ -750,6 +733,11 @@ class DataAnalyser:
         plt.close()
     
     def plot_specific_nodes2(self, nodes=1):
+        """
+        Check the mean and stddev of the specific node, and its neighbour
+        Also labels the legend starting with 1 instead of the node ID
+        Used to plot Figure 13c and 13d
+        """
         nodes = [nodes]
         
         # also include the nodes' neighbours
@@ -816,25 +804,25 @@ class DataAnalyser:
         
     
     def check_prior_at_time(self, node=77, t=1000):
-        #nodes = [70, 1, 22, 65]
-        #nodes = [65, 3, 30, 40, 70]
-        #nodes = [77, 12, 48, 60]
-        nodes = [node]
+        """
+        Interactively check the priors of a node and its immediate neighbours.
+        """
+        heads_list, _ = read_coin_observations(f'{self.direc}/data/observations.txt')
+        
         g = recreate_graph(self.direc)
-        neighbours = [edge for edge in g.edges(data='correlation') if nodes[0] in edge]
-        neighbours = [i[0] if i[1]==nodes[0] else i[1] for i in neighbours]
-        nodes.extend(neighbours)
+        nodes = [n for n in g.neighbors(node)]
+        nodes.insert(0, node)
         
         priors = [extract_prior(self.direc, n, t) for n in nodes]
-        bias_list = np.linspace(0,1,21)
         
         fig, ax = plt.subplots()
         plt.subplots_adjust(bottom=0.2)
         line_list = []
         for n in range(len(nodes)):
-            line_list.append(ax.plot(np.linspace(0,1,21), priors[n], label=f'{nodes[n]} {"+" if (n == 0 or g.edges[nodes[n],node]["correlation"] > 0) else "-"}')[0])
+            line_list.append(ax.plot(np.linspace(0,1,21), priors[n], zorder=2*(1+n), label=f'{nodes[n]+1} {"+" if (n == 0 or g.edges[nodes[n],node]["correlation"] > 0) else "-"}')[0])
         ax.legend()
         ax.grid(linestyle='--', axis='both')
+        # ax.set_title(f't={t}, {heads_list[t]}, {np.sum(heads_list[t-10:t])}, {np.sum(heads_list[t-100:t])}')
         ax.set_title(f't={t}')
         #fig.tight_layout()
         
@@ -849,28 +837,95 @@ class DataAnalyser:
             def call_prev(self2, event):
                 self2.ind -= 1
                 self2.update_data()
-
+                
+            def call_next10(self2, event):
+                self2.ind += 10
+                self2.update_data()
+                
+            def call_prev10(self2, event):
+                self2.ind -= 10
+                self2.update_data()
+                
+            def call_next100(self2, event):
+                self2.ind += 100
+                self2.update_data()
+                
+            def call_prev100(self2, event):
+                self2.ind -= 100
+                self2.update_data()
+                
+            def call_next1000(self2, event):
+                self2.ind += 1000
+                self2.update_data()
+                
+            def call_prev1000(self2, event):
+                self2.ind -= 1000
+                self2.update_data()
+                
             def call_slider(self2, event):
                 self2.ind = int(event)
                 self2.update_data()
                 
             def update_data(self2):
                 priors = [extract_prior(self.direc, n, self2.ind) for n in nodes]
+                ymax = 0.0
                 for count, line in enumerate(line_list):
                     line.set_ydata(priors[count])
-                ax.set(title=f't={self2.ind}')
+                    ymax = max(ymax, max(priors[count]))
+                t = self2.ind
+                ax.set(title=f't={t}')
+                t -= 1
+                # ax.set_title(f't={t}, {heads_list[t]}, {np.sum(heads_list[t-10:t])}, {np.sum(heads_list[t-100:t])}')
+                ax.set_title(f't={t}')
+                ax.set_ylim(top=ymax+0.01)
+                plt.draw()
+            
+            def change_zorder(self2, event):
+                lines = line_list
+                zorder_ori = [line.get_zorder() for line in lines]
+                zorder_rolled = np.roll(zorder_ori, 1)
+                for count, line in enumerate(lines):
+                    line.set_zorder(zorder_rolled[count])
                 plt.draw()
                 
         
         callback = Index()
         callback.ind = t
-        ax_next = plt.axes([0.1, 0.07, 0.2, 0.05])  # left, top, width height
+        ax_next = plt.axes([0.1, 0.07, 0.1, 0.05])  # left, top, width height
         next_button = Button(ax_next, 'Next')
         next_button.on_clicked(callback.call_next)
         
-        ax_prev = plt.axes([0.4, 0.07, 0.2, 0.05])  # left, top, width height
+        ax_prev = plt.axes([0.2, 0.07, 0.1, 0.05])  # left, top, width height
         prev_button = Button(ax_prev, 'Prev')
         prev_button.on_clicked(callback.call_prev)
+        
+        ax_next = plt.axes([0.3, 0.07, 0.1, 0.05])  # left, top, width height
+        next_button2 = Button(ax_next, '+10')
+        next_button2.on_clicked(callback.call_next10)
+        
+        ax_prev = plt.axes([0.4, 0.07, 0.1, 0.05])  # left, top, width height
+        prev_button2 = Button(ax_prev, '-10')
+        prev_button2.on_clicked(callback.call_prev10)
+        
+        ax_next = plt.axes([0.5, 0.07, 0.1, 0.05])  # left, top, width height
+        next_button3 = Button(ax_next, '+100')
+        next_button3.on_clicked(callback.call_next100)
+        
+        ax_prev = plt.axes([0.6, 0.07, 0.1, 0.05])  # left, top, width height
+        prev_button3 = Button(ax_prev, '-100')
+        prev_button3.on_clicked(callback.call_prev100)
+        
+        ax_next = plt.axes([0.7, 0.07, 0.1, 0.05])  # left, top, width height
+        next_button4 = Button(ax_next, '+1000')
+        next_button4.on_clicked(callback.call_next1000)
+        
+        ax_prev = plt.axes([0.8, 0.07, 0.1, 0.05])  # left, top, width height
+        prev_button4 = Button(ax_prev, '-1000')
+        prev_button4.on_clicked(callback.call_prev1000)
+        
+        ax_prev = plt.axes([0.9, 0.07, 0.1, 0.05])  # left, top, width height
+        zorder_button = Button(ax_prev, 'zorder')
+        zorder_button.on_clicked(callback.change_zorder)
         
         plt.show()
               
@@ -901,14 +956,21 @@ class DataAnalyser:
                     for n in common_list:
                         print(f'Mode of {n}: {mode_list[n]}')
                 
-    def get_least_confident_node(self):
-        if not self.summary_stats_dict:
-            self.calculate_summary_statistics()
+    def get_least_confident_node(self, t=-1):
+        """
+        Prints a list of the nodes with the highest stddev at time t. t=-1 means latest time
+        """
+        g = recreate_graph(self.direc, t)
+        bias_list = np.linspace(0, 1, g.nodes[0]['prior'].shape[0])
+        stddev_list = np.zeros(g.number_of_nodes())
+        
+        for node, prior in g.nodes(data='prior'):
+            mean = np.sum(prior * bias_list)
+            stddev = np.sqrt(sum((bias_list - mean) ** 2 * prior))
+            stddev_list[node] = stddev
             
-        g = recreate_graph(self.direc)
-        # max_list = np.argmax(self.summary_stats_dict['stddev'], axis=1)
-        max_list = np.argsort(self.summary_stats_dict['stddev'], axis=1)
-        print(max_list[-1, -10:])  # time, node
+        max_list = np.argsort(stddev_list)
+        print(max_list[-10:])
          
     def check_asymp_time(self):
         asymp_time, asymp_median = get_asymp_info(self.direc)
@@ -1028,11 +1090,7 @@ if __name__ == '__main__':
     # DataAnalyser('output/default').find_belief_convergence(True)
     # DataAnalyser('output/oscillation').find_belief_oscillation()
     # DataAnalyser('output/test_sus2').plot_specific_nodes(37)
-    DataAnalyser('output/test_sus2').plot_specific_nodes(67)
+    # DataAnalyser('output/test_sus2').plot_specific_nodes(67)
     # DataAnalyser('output/test_sus2').get_least_confident_node()
-    
-
-"""
-94
-check is all no asymp has at least one ally.
-"""   
+    DataAnalyser('output/presentation_opponent').produce_plots()
+    DataAnalyser('output/presentation_opponent').save_priors_into_gif()
