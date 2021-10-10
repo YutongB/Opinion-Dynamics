@@ -75,7 +75,7 @@ def main(args):
             res = do_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
     elif mode == 'balanced':
         # res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size, m=args.edges)
-        res = run_balanced(sim_params=sim_params)
+        res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size)
 
 
     fname = "output/res-{}.json".format(timestamp())
