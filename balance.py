@@ -28,6 +28,7 @@ class ClusterVisitor(gt.DFSVisitor):
                 self.cluster_ids.a[self.cluster_ids.a == s] = t
 
 
+
 def get_clusters(g):
     """
     Gets the clusters of a graph (graph-tool), returned as an array of cluster ids for each vertex
@@ -41,7 +42,7 @@ def get_clusters(g):
     cluster_ids = g.new_vertex_property('int')
     cluster_ids.a = np.full(g.num_vertices(), -1)
     gt.dfs_search(g, visitor=ClusterVisitor(cluster_ids, g.ep.friendliness))
-    return cluster_ids.a
+    return cluster_ids
 
 class UnbalancedVisitor(gt.DFSVisitor):
     """
@@ -57,6 +58,7 @@ class UnbalancedVisitor(gt.DFSVisitor):
         # therefore, we'd have two agents in the same cluster that _are_ opponents
         if self.friendliness[e] < 0:  # opponents
             if self.cluster_ids[u] == self.cluster_ids[v]:
+                print('unbalanced!')
                 raise gt.StopSearch()  # unbalanced!
 
 from enum import Enum
@@ -77,13 +79,14 @@ def test_graph_balance(g):
     except gt.StopSearch:
         return Balance.UNBALANCED
 
-    num_clusters = np.unique(cluster_ids)
+    cluster_ids = cluster_ids.a
+    num_clusters = len(np.unique(cluster_ids))
     if num_clusters <= 2:
         return Balance.STRONGLY
     else:
         return Balance.WEAKLY
 
-def gen_balanced(k, n=1e4, m=3):
+def gen_balanced(k, n=1e4, m=3, verbose=False):
     """
     k: number of clusters
     n: number of nodes
@@ -92,18 +95,22 @@ def gen_balanced(k, n=1e4, m=3):
 
     # generates an undirected Barabási-Albert network
     g = create_model_graph(gt.price_network(N=n, m=m, directed=False))
-
-    if k == 1:
-        return g
-
+    if verbose: print("running gen_balanced with k=", k)
+    
     # TODO: There's a bug below, try:
     # np.unique(get_clusters(gen_balanced(k=2, n=1000, m=3)))
+
     cluster_sizes = np.random.multinomial(n-k, np.ones(k)/k) + 1
+    if verbose: print("cluster_sizes\n", cluster_sizes)
     nodes_id = np.repeat(np.arange(k), cluster_sizes)
     np.random.shuffle(nodes_id)
+    if verbose: print("nodes_id", nodes_id)
 
     is_same_group = nodes_id.reshape(-1,1) == nodes_id
+    if verbose: print("is_same_group", is_same_group)
+
     edge_values = is_same_group * 2 - 1   # False -> -1, True -> 1
+    if verbose: print("edge_values", edge_values)
 
     edges = g.get_edges()
     g.ep.friendliness.a = edge_values[edges[:,0],edges[:,1]]
@@ -138,19 +145,35 @@ def gen_balanced_type(type, **kwargs):
     else:
         return gen_unbalanced(**kwargs)
 
-def balanced_graph_gen(type, n, m):
+def balanced_graph_gen(type, n, m, test_balance=False):
     def graph_generator():
         while True:
             g = gen_balanced_type(type, n=n, m=m)
 
             # for debug, we assure we're generating stuff of the right type
-            if (actual_type := test_graph_balance(g)) != type:
+            if test_balance and (actual_type := test_graph_balance(g)) != type:
                 print(f"WARN! Attempted generating {type} but generated {actual_type}. Skipping.")
                 continue
-            yield g
-    return graph_generator()
+            return g
+    return graph_generator
 
 def run_balanced(sim_params, threshold=1e3, n=1e4, m=3): 
     # return {t: run_balanced_one_type(t, sim_params, threshold=threshold, n=n, m=m) for t in Balance}
-    return {t: do_ensemble(runs=int(threshold), gen_graph=balanced_graph_gen(t, n=int(n), m=int(m)), 
+    n = int(n)
+    return {t: do_ensemble(runs=int(threshold), gen_graph=balanced_graph_gen(t, n=n, m=int(m)), 
                 sim_params=sim_params) for t in Balance }
+
+def draw_cluster_graph(g):
+    edge_color_map = {-1.0: (1, 0, 0, 1),  # red
+                        1.0: (0, 1, 0, 1),  # green
+                        0.0: (0, 0, 0, 0)}  # black
+
+    edge_color = g.new_ep('vector<double>')
+    for f, e in zip(g.ep.friendliness, g.edges()):
+        edge_color[e] = edge_color_map[f]
+
+    cluster_ids = get_clusters(g)
+
+    gt.graph_draw(g,vertex_text=cluster_ids,
+                    edge_color=edge_color,
+                    output_size=(150, 150))

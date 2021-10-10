@@ -400,7 +400,8 @@ def adjacency_mat(g):
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25, 
-                   tosses_per_iteration=10,task_id=None, progress=None):
+                   tosses_per_iteration=10, task_id=None, progress=None,
+                   log=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -434,10 +435,11 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             friendliness=friendliness,
             num_coins=tosses_per_iteration)
 
-        mean = mean_distr(posterior)
-        mean_list.append(mean)
-        std_list.append(std_distr(posterior, mean))
-        coins_list.append(coins)
+        if log is not None:
+            mean = mean_distr(posterior)
+            mean_list.append(mean)
+            std_list.append(std_distr(posterior, mean))
+            coins_list.append(coins)
 
         if np.all(np.any(posterior > 0.99, axis=1)):
             iters_asymptotic_learning += 1
@@ -453,6 +455,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         prior_distr = posterior.copy()
 
         if done_event.is_set():
+            print("!! Caught interrupt.")
             return
 
     adjacency = adjacency_mat(g)
@@ -477,9 +480,7 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False):
     # by default, do complete graph of 10 nodes with random
     if gen_graph is None:
         def gen_graph(): 
-            while True:
-                yield complete_graph_of_random(10)
-        gen_graph = gen_graph()
+            return complete_graph_of_random(10)
 
     if sim_params is None:
         sim_params = {}
@@ -491,7 +492,7 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False):
 
         for r in range(runs):
             task_id = progress.add_task("Sim #{}".format(r+1))
-            sim = run_simulation(next(gen_graph), **sim_params, task_id=task_id, progress=progress)
+            sim = run_simulation(gen_graph(), **sim_params, task_id=task_id, progress=progress)
             
             #print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
             if simple:
