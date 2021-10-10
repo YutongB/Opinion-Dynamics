@@ -39,7 +39,7 @@ def get_clusters(g):
     worst case, E = O(V^2)  (complete graph); usual case, E ~ O(V)
     """
     cluster_ids = g.new_vertex_property('int')
-    cluster_ids.a = np.full(g.num_vertices, -1)
+    cluster_ids.a = np.full(g.num_vertices(), -1)
     gt.dfs_search(g, visitor=ClusterVisitor(cluster_ids, g.ep.friendliness))
     return cluster_ids.a
 
@@ -93,15 +93,64 @@ def gen_balanced(k, n=1e4, m=3):
     # generates an undirected Barabási-Albert network
     g = create_model_graph(gt.price_network(N=n, m=m, directed=False))
 
-    # initially all friendly
-    g.ep.friendliness.a[:] = 1
+    if k == 1:
+        return g
 
-    # 
+    # TODO: There's a bug below, try:
+    # np.unique(get_clusters(gen_balanced(k=2, n=1000, m=3)))
+    cluster_sizes = np.random.multinomial(n-k, np.ones(k)/k) + 1
+    nodes_id = np.repeat(np.arange(k), cluster_sizes)
+    np.random.shuffle(nodes_id)
 
-    
+    is_same_group = nodes_id.reshape(-1,1) == nodes_id
+    edge_values = is_same_group * 2 - 1   # False -> -1, True -> 1
+
+    edges = g.get_edges()
+    g.ep.friendliness.a = edge_values[edges[:,0],edges[:,1]]
+
     return g
 
+def gen_unbalanced(p=0.5, n=1e4, m=3):
+    """
+    p = probability of changing to -1  (being an opponent edge)
+    """
+    # NOTE: technically (rarely) can produce balanced graphs.
 
+    g = create_model_graph(gt.price_network(N=n, m=m, directed=False))
+    M = g.ep.friendliness.a.shape[0]
 
+    g.ep.friendliness.a = np.random.choice(a=[-1, 1] , size=M, p=[p, 1-p])
+    return g
 
+def gen_strongly_balanced(**kwargs):
+    k = 1 if np.random.random() < 0.5 else 2
+    return gen_balanced(k=k, **kwargs)
 
+def gen_weakly_balanced(p=0.5, **kwargs):
+    k = 3 + np.random.geometric(p=p)
+    return gen_balanced(k=k, **kwargs)
+
+def gen_balanced_type(type, **kwargs):
+    if type == Balance.WEAKLY:
+        return gen_weakly_balanced(**kwargs)
+    elif type == Balance.STRONGLY:
+        return gen_strongly_balanced(**kwargs)
+    else:
+        return gen_unbalanced(**kwargs)
+
+def balanced_graph_gen(type, n, m):
+    def graph_generator():
+        while True:
+            g = gen_balanced_type(type, n=n, m=m)
+
+            # for debug, we assure we're generating stuff of the right type
+            if (actual_type := test_graph_balance(g)) != type:
+                print(f"WARN! Attempted generating {type} but generated {actual_type}. Skipping.")
+                continue
+            yield g
+    return graph_generator()
+
+def run_balanced(sim_params, threshold=1e3, n=1e4, m=3): 
+    # return {t: run_balanced_one_type(t, sim_params, threshold=threshold, n=n, m=m) for t in Balance}
+    return {t: do_ensemble(runs=int(threshold), gen_graph=balanced_graph_gen(t, n=int(n), m=int(m)), 
+                sim_params=sim_params) for t in Balance }

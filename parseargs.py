@@ -10,11 +10,10 @@ def parser_handle_graph(parser):
     #       enum & number or something like that
     parser.add_argument('-e', "--edges", choices=["friends", "enemies", "random", "random_unif"], help="type of each edge (friendliness) on generated graph", default="random")
 
-    parser.add_argument("-l", "--leader", default="none", choices=["none", "for", "against"], help="generate a directed graph with a leader")
+    # parser.add_argument("-l", "--leader", default="none", choices=["none", "for", "against"], help="generate a directed graph with a leader")
 
-    parser.add_argument("-c", "--complete", action="store_true", help="generate a complete graph")
+    parser.add_argument('-x', "--mode", choices=["complete", "balanced"], help="what way to run the simulations", default="random")
 
-    # TODO: options for stuff other than complete graphs
 
     mean = parser.add_mutually_exclusive_group()
     mean.add_argument("--mean_range", nargs=2, default=[0.0, 1.0], type=float,

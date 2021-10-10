@@ -2,6 +2,7 @@ import timeit
 from sim import *
 from pprint import pformat
 from parseargs import parse_args
+from balance import *
 
 def parse_graph(args):
     n = args.size
@@ -56,20 +57,29 @@ def main(args):
     sim_params = parse_sim_params(args)
     runs = args.runs if not args.single else 1
 
+    mode = args.mode
+
     print(args)
+    res = None
 
-    print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\nsimulation parameters\n{}".format(
-        f"ensemble of {runs} simulations" if not args.single else "simulation", 
-        args.size, args.edges, pformat(sim_params)))
+    if mode == "complete":
+        print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\nsimulation parameters\n{}".format(
+            f"ensemble of {runs} simulations" if not args.single else "simulation", 
+            args.size, args.edges, pformat(sim_params)))
 
-    if runs == 1:
-        res = [run_simulation(gen_graph(), **sim_params)]
-    elif runs < 1:
-        raise Exception("invalid number of runs")
-    else:
-        res = do_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
+        if runs == 1:
+            res = [run_simulation(gen_graph(), **sim_params)]
+        elif runs < 1:
+            raise Exception("invalid number of runs")
+        else:
+            res = do_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
+    elif mode == 'balanced':
+        # res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size, m=args.edges)
+        res = run_balanced(sim_params=sim_params)
+
 
     fname = "output/res-{}.json".format(timestamp())
+    assert(res != None)
     dump_results(res, fname)
     print("Wrote results to", fname)
 

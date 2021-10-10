@@ -468,7 +468,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                       friendliness=friendliness)
 
 
-def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
+def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False):
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
@@ -476,10 +476,14 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
 
     # by default, do complete graph of 10 nodes with random
     if gen_graph is None:
-        def gen_graph(): return complete_graph_of_random(10)
+        def gen_graph(): 
+            while True:
+                yield complete_graph_of_random(10)
+        gen_graph = gen_graph()
 
     if sim_params is None:
         sim_params = {}
+
 
     with make_progress() as progress:
         results = []
@@ -487,10 +491,13 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None):
 
         for r in range(runs):
             task_id = progress.add_task("Sim #{}".format(r+1))
-            sim = run_simulation(gen_graph(), **sim_params, task_id=task_id, progress=progress)
+            sim = run_simulation(next(gen_graph), **sim_params, task_id=task_id, progress=progress)
             
             #print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
-            results.append(sim)
+            if simple:
+                results.append(sim.step if sim.asymptotic else 0)
+            else:
+                results.append(sim)
             progress.update(ensemble, advance=1)
 
 
