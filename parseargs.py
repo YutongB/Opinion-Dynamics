@@ -14,6 +14,9 @@ def parser_handle_graph(parser):
 
     parser.add_argument('-x', "--mode", choices=["complete", "balanced"], help="what way to run the simulations", default="complete")
 
+    parser.add_argument('--test_DW', action="store_true", help="test various values of DWeps in same simulation")
+
+    parser.add_argument("--DWeps", type=float, help="Threshold for ignoring the opinion for DW update rule; use 1 to use normal update rule", default=1)
 
     mean = parser.add_mutually_exclusive_group()
     mean.add_argument("--mean_range", nargs=2, default=[0.0, 1.0], type=float,
@@ -33,7 +36,8 @@ def parser_handle_ensemble(parser):
                         help="number of simulation runs in the ensemble")
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Opinion dynamics simulation, Yutong Bu 2021')
+    parser = argparse.ArgumentParser(description='Opinion dynamics simulation, Yutong Bu 2021',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser_handle_graph(parser)
 

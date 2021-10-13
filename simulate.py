@@ -48,6 +48,8 @@ def parse_sim_params(args):
         "tosses_per_iteration": args.tosses,
         "learning_rate": args.learning_rate,
         "asymptotic_learning_max_iters": args.asym_max_iters,
+        "DWeps": args.DWeps,
+        "log": None if args.mode == 'balanced' else True
     }
 
 def main(args):
@@ -80,7 +82,9 @@ def main(args):
 
     fname = "output/res-{}.json".format(timestamp())
     assert(res != None)
-    dump_results(res, fname)
+
+    out = {"res": res, "args": args}
+    dump_results(out, fname)
     print("Wrote results to", fname)
 
     time2 = timeit.default_timer()

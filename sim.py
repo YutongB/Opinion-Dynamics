@@ -24,6 +24,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
+
 def make_progress():
     return Progress(
         TextColumn("{task.description}", justify="right"),
@@ -38,6 +39,7 @@ def make_progress():
         refresh_per_second=5,
         # transient=True,
     )
+
 
 def create_model_graph(g=None):
     if g is None:
@@ -75,7 +77,7 @@ def draw_graph(g, show_vertex_labels=False, width=150):
 
     gt.graph_draw(g,
                   vertex_text=g.vertex_index if show_vertex_labels else None,
-                #   edge_color=edge_colors,
+                  #   edge_color=edge_colors,
                   edge_text=g.ep.friendliness,
                   output_size=(width, width))
 
@@ -170,6 +172,7 @@ def bias():
     # values  (0.00, 0.05, ..., 1.00)
     return np.linspace(0, 1, BIAS_SAMPLES)
 
+
 @cache
 def bias_mat(num_priors):
     """
@@ -188,11 +191,13 @@ def fwhm_to_sd(fwhm):
 def gen_prior_mean(num_priors, mean_range=(0.0, 1.0)):
     return uniform(*mean_range, num_priors)
 
+
 def gen_prior_sd(num_priors, fwhm_range=(0.2, 0.8), sd_range=None):
     if sd_range is not None:
-         # alternatively generate directly from standard deviation
+        # alternatively generate directly from standard deviation
         return uniform(*sd_range, num_priors)
     return fwhm_to_sd(uniform(*fwhm_range, num_priors))
+
 
 def generate_priors(num_priors, mean_range=(0.0, 1.0), fwhm_range=(0.2, 0.8)):
     prior_mean = uniform(*mean_range, num_priors)
@@ -216,6 +221,7 @@ def normalize_distr(distr):
     norm = np.sum(distr, axis=1)
     return distr / norm[:, None]
 
+
 @cache
 def coin_toss_likelihood(num_heads, num_coins=1):
     """
@@ -228,15 +234,18 @@ def coin_toss_likelihood(num_heads, num_coins=1):
     return binom.pmf(num_heads, num_coins, bias())
     # return np.array((1 - bias(), bias()))
 
+
 def mean_distr(distrs):
     n = distrs.shape[0]
     return np.sum(distrs * bias_mat(n), axis=1)
+
 
 def std_distr(distrs, mean):
     n = distrs.shape[0]
     mean = mean[:, None]
     return np.sqrt(
         np.sum(np.square(bias_mat(n) - mean) * distrs, axis=1))
+
 
 def mean_std_distr(distrs):
     mean = mean_distr(distrs)
@@ -286,7 +295,7 @@ def graph_get_prior_distr(g):
         row i corresponding to the prior distribution for person i, x_i(t, θ)
         col j corresponding to the prior distribution evaluated at θ = 0.05 * j
     """
-    return g.vp.prior_distr.get_2d_array(np.arange(21)).T
+    return g.vp.prior_distr.get_2d_array(np.arange(BIAS_SAMPLES)).T
 
 
 def graph_set_prior_distr(g, distr):
@@ -306,8 +315,8 @@ def friendliness_mat(g):
 def avg_dist_in_belief(friendliness, posterior_distr):
     n = friendliness.shape[0]
 
-    xi = np.broadcast_to(posterior_distr, (n, n, 21)).transpose((1, 0, 2))
-    xj = np.broadcast_to(posterior_distr, (n, n, 21))
+    xi = np.broadcast_to(posterior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
+    xj = np.broadcast_to(posterior_distr, (n, n, BIAS_SAMPLES))
     # calculate the difference in belief for node i to node j
     diff_in_belief = ((xj - xi).T * friendliness).T
     summation = np.sum(diff_in_belief, axis=1)
@@ -318,6 +327,27 @@ def avg_dist_in_belief(friendliness, posterior_distr):
     # the .T stuff fixes some broadcasting issue  (same above too!)
     avg_dist_in_belief = summation * divisor[:, None]
     return avg_dist_in_belief
+
+
+def DW_update(friendliness, prior_distr, DWeps):
+    # NOTE: DWeps = 1 makes this function do nothing.
+    if DWeps == 1:
+        return friendliness
+    #if |prior x - prior y| > DWesp and friendliness[x][y] != 0, then ignore and friendliness[x][y] = 0
+
+    n = friendliness.shape[0]
+
+    xi = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
+    xj = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES))
+    # calculate the difference in belief for node i to node j
+    # diff_in_belief = ((np.abs(xj - xi)).T * friendliness).T
+    f = friendliness != 0
+
+    diff_in_belief = np.abs(((xj - xi).T * f).T)
+    mask = np.any(diff_in_belief > DWeps, axis=2)
+    friendliness = friendliness * mask
+
+    return friendliness
 
 
 # mean_range=(0.0, 1.0), fwhm_range=(0.2, 0.8)
@@ -345,9 +375,11 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
     # g.vp.prior_distr.set_2d_array(distr.T)
     return distr
 
+
 EPSILON = 0
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10, friendliness=None):
+
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10, friendliness=None, DWeps=1):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -356,6 +388,9 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
 
     if friendliness is None:
         friendliness = friendliness_mat(g)
+
+    if DWeps != 1:  # use the DW update rule 
+        friendliness = DW_update(friendliness, prior_distr, DWeps)
 
     # simulate an independent coin toss
     toss = toss_coins(bias=true_bias, num_coins=num_coins)
@@ -368,10 +403,10 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
-    avg_dist_belief = avg_dist_in_belief(friendliness, posterior_distr)   # (eqn 4)
+    avg_dist_belief = avg_dist_in_belief(
+        friendliness, posterior_distr)   # (eqn 4)
 
     # TODO: learning_rate vector, length # nodes; set a learning rate for each person
-
     bayes_update_max_RHS = posterior_distr + avg_dist_belief * learning_rate
     bayes_update_max_LHS = np.broadcast_to(EPSILON, (n, 21))
     bayes_update = np.amax(
@@ -379,33 +414,42 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
 
     next_prior_distr = normalize_distr(bayes_update)
 
+
     # graph_set_prior_distr(g, next_prior_distr.T)
 
     # plot_graph_distr(g)
 
     return toss, next_prior_distr
 
+
 done_event = Event()
+
+
 def handle_sigint(signum, frame):
     done_event.set()
+
+
 signal.signal(signal.SIGINT, handle_sigint)
 
 SimResults = namedtuple("SimulationResults",
-                        ("steps", "asymptotic", "coins", "mean_list", "std_list", 
-                        "final_distr", "initial_distr", "friendliness", "adjacency"))
+                        ("steps", "asymptotic", "coins", "mean_list", "std_list",
+                         "final_distr", "initial_distr", "friendliness", "adjacency"))
+
 
 def adjacency_mat(g):
     return gt.adjacency(g).toarray()
 
+
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
-                   true_bias=0.5, learning_rate=0.25, 
+                   true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
-                   log=None):
+                   log=None, DWeps=1):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
-    initial_distr = init_simulation(g, prior_mean=prior_mean, prior_sd=prior_sd)
+    initial_distr = init_simulation(
+        g, prior_mean=prior_mean, prior_sd=prior_sd)
 
     coins_list = []
     mean_list = []
@@ -428,13 +472,16 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
 
     progress.update(task_id, total=max_steps)
 
+    steps = 0
     # steps 2-3 of Probabilistic automaton, until t = T
     for i in range(max_steps):
         coins, posterior = step_simulation(
-            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate, 
+            g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate,
             friendliness=friendliness,
-            num_coins=tosses_per_iteration)
+            num_coins=tosses_per_iteration,
+            DWeps=DWeps)
 
+        steps += 1
         if log is not None:
             mean = mean_distr(posterior)
             mean_list.append(mean)
@@ -445,7 +492,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
-        
+
         progress.update(task_id, advance=1)
 
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
@@ -460,7 +507,18 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
 
     adjacency = adjacency_mat(g)
 
-    return SimResults(steps=len(coins_list),
+    if log is None:
+        return SimResults(steps=steps,
+                          asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
+                          coins=None,
+                          mean_list=None,
+                          std_list=None,
+                          final_distr=None,
+                          initial_distr=None,
+                          adjacency=None,
+                          friendliness=None)
+
+    return SimResults(steps=steps,
                       asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
                       coins=coins_list,
                       mean_list=mean_list,
@@ -471,7 +529,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                       friendliness=friendliness)
 
 
-def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False):
+def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False,
+                title="Ensemble"):
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
@@ -479,28 +538,27 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False):
 
     # by default, do complete graph of 10 nodes with random
     if gen_graph is None:
-        def gen_graph(): 
+        def gen_graph():
             return complete_graph_of_random(10)
 
     if sim_params is None:
         sim_params = {}
 
-
     with make_progress() as progress:
         results = []
-        ensemble = progress.add_task("Ensemble", total=runs)
+        ensemble = progress.add_task(title, total=runs)
 
         for r in range(runs):
             task_id = progress.add_task("Sim #{}".format(r+1))
-            sim = run_simulation(gen_graph(), **sim_params, task_id=task_id, progress=progress)
-            
+            sim = run_simulation(gen_graph(), **sim_params,
+                                 task_id=task_id, progress=progress)
+
             #print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
             if simple:
                 results.append(sim.step if sim.asymptotic else 0)
             else:
                 results.append(sim)
             progress.update(ensemble, advance=1)
-
 
     return results
 
@@ -520,7 +578,8 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
         sim_params = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(run_simulation, gen_graph(), **sim_params) for r in range(runs)]
+        futures = [pool.submit(run_simulation, gen_graph(),
+                               **sim_params) for r in range(runs)]
 
         results = []
         for future in as_completed(futures):
@@ -529,6 +588,8 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
     return results
 
 # from dumping a numpy array to json : https://stackoverflow.com/a/47626762
+
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
 
@@ -542,15 +603,20 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def dump_results(results, filename):
+    if isinstance(results, object):
+        return dump_dict(results, filename)
+
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         # convert namedtuple to dictionary
         json.dump([r._asdict() for r in results], f, cls=NumpyEncoder)
 
+
 def dump_dict(d, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         json.dump(d, f, cls=NumpyEncoder)
+
 
 def parse_result(results_dict):
     for k in ["adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list"]:
@@ -564,26 +630,25 @@ def read_results(filename):
         return [parse_result(r) for r in json.load(f)]
         #results = list(map(parse_result, results))
 
+
 def matrix_to_edge_list(mat):
     n = len(mat)
     return [(u, v)
-        for u in range(n) for v in range(u+1, n)]
+            for u in range(n) for v in range(u+1, n)]
 
 
 def read_graph(adjacency, friendliness):
     g = create_model_graph()
     n = len(adjacency)
     g.add_vertex(n)
-    g.add_edge_list([(u, v, friendliness[u][v]) 
-        for u, v in matrix_to_edge_list(adjacency)], 
-        eprops=[g.ep.friendliness])
+    g.add_edge_list([(u, v, friendliness[u][v])
+                     for u, v in matrix_to_edge_list(adjacency)],
+                    eprops=[g.ep.friendliness])
 
     return g
-    #friend_edges = {(u, v): friendliness[u][v] 
+    # friend_edges = {(u, v): friendliness[u][v]
     #    for u in range(n) for v in range(u+1, n) }
-    
 
 
 def timestamp():
     return datetime.now().strftime("%Y_%m_%d-%H_%M_%S")
-
