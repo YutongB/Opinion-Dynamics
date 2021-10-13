@@ -315,7 +315,8 @@ def friendliness_mat(g):
 def avg_dist_in_belief(friendliness, posterior_distr):
     n = friendliness.shape[0]
 
-    xi = np.broadcast_to(posterior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
+    xi = np.broadcast_to(
+        posterior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
     xj = np.broadcast_to(posterior_distr, (n, n, BIAS_SAMPLES))
     # calculate the difference in belief for node i to node j
     diff_in_belief = ((xj - xi).T * friendliness).T
@@ -333,11 +334,12 @@ def DW_update(friendliness, prior_distr, DWeps):
     # NOTE: DWeps = 1 makes this function do nothing.
     if DWeps == 1:
         return friendliness
-    #if |prior x - prior y| > DWesp and friendliness[x][y] != 0, then ignore and friendliness[x][y] = 0
+    # if |prior x - prior y| > DWesp and friendliness[x][y] != 0, then ignore and friendliness[x][y] = 0
 
     n = friendliness.shape[0]
 
-    xi = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
+    xi = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES)
+                         ).transpose((1, 0, 2))
     xj = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES))
     # calculate the difference in belief for node i to node j
     # diff_in_belief = ((np.abs(xj - xi)).T * friendliness).T
@@ -354,10 +356,14 @@ def DW_update(friendliness, prior_distr, DWeps):
 def init_simulation(g, prior_mean=None, prior_sd=None):
     n = g.num_vertices(ignore_filter=True)
 
-    if prior_mean is not None and prior_mean.shape[0] != n:
-        raise Exception("Invalid prior mean entered, g has dimension", n)
-    if prior_sd is not None and prior_sd.shape[0] != n:
-        raise Exception("Invalid prior sd entered, g has dimension", n)
+    if prior_mean is not None:
+        prior_mean = np.array(prior_mean)
+        if prior_mean.shape[0] != n:
+            raise Exception("Invalid prior mean entered, g has dimension", n)
+    if prior_sd is not None:
+        prior_sd = np.array(prior_sd)
+        if prior_sd.shape[0] != n:
+            raise Exception("Invalid prior sd entered, g has dimension", n)
 
     # randomly generate prior and prior sd if no args given
     if prior_mean is None or prior_sd is None:
@@ -379,7 +385,8 @@ def init_simulation(g, prior_mean=None, prior_sd=None):
 EPSILON = 0
 
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10, friendliness=None, DWeps=1):
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10,
+                    friendliness=None, DWeps=1, coins=None):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -389,16 +396,18 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
     if friendliness is None:
         friendliness = friendliness_mat(g)
 
-    if DWeps != 1:  # use the DW update rule 
+    if DWeps != 1:  # use the DW update rule
         friendliness = DW_update(friendliness, prior_distr, DWeps)
 
-    # simulate an independent coin toss
-    toss = toss_coins(bias=true_bias, num_coins=num_coins)
+    if coins is None:
+        # simulate an independent coin toss
+        coins = toss_coins(bias=true_bias, num_coins=num_coins)
+    # else: use the coin from the coins list.
 
     # update the opinions of each agent according to Bayes' Theorem (observe coin toss)
     # prior_distr1 = graph_get_prior_distr(g)
     likelihood = coin_toss_likelihood(
-        num_heads=toss, num_coins=num_coins)  # (eqn 2)
+        num_heads=coins, num_coins=num_coins)  # (eqn 2)
     posterior_distr = normalize_distr(likelihood * prior_distr)  # (eqn 1)
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
 
@@ -414,12 +423,11 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
 
     next_prior_distr = normalize_distr(bayes_update)
 
-
     # graph_set_prior_distr(g, next_prior_distr.T)
 
     # plot_graph_distr(g)
 
-    return toss, next_prior_distr
+    return coins, next_prior_distr
 
 
 done_event = Event()
@@ -444,7 +452,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
-                   log=None, DWeps=1):
+                   log=None, DWeps=1, coinslist=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -475,11 +483,14 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     steps = 0
     # steps 2-3 of Probabilistic automaton, until t = T
     for i in range(max_steps):
+
+        coins = None if coinslist is None else coinslist[i]
+
         coins, posterior = step_simulation(
             g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate,
             friendliness=friendliness,
             num_coins=tosses_per_iteration,
-            DWeps=DWeps)
+            DWeps=DWeps, coins=coins)
 
         steps += 1
         if log is not None:
@@ -544,13 +555,29 @@ def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False,
     if sim_params is None:
         sim_params = {}
 
+    try:
+        coinslists = sim_params["coinslists"]
+        del sim_params["coinslists"]
+        priors = sim_params["priors"]
+        del sim_params["priors"]
+    except:
+        coinslists = None
+        priors = None
+
+    coinslist = None
+
     with make_progress() as progress:
         results = []
         ensemble = progress.add_task(title, total=runs)
 
         for r in range(runs):
             task_id = progress.add_task("Sim #{}".format(r+1))
-            sim = run_simulation(gen_graph(), **sim_params,
+
+            if coinslists is not None:
+                coinslist = coinslists[r]
+                sim_params["prior_mean"], sim_params["prior_sd"] = priors[r]
+
+            sim = run_simulation(gen_graph(), coinslist=coinslist, **sim_params,
                                  task_id=task_id, progress=progress)
 
             #print("Run {}/{}: Asymptotic Learning Time: {}".format(r+1, runs, sim.steps))
@@ -607,6 +634,7 @@ def dump_json(results, filename):
     with open(filename, 'w') as f:
         # serialise results to be dumped to JSON
         json.dump(results, f, cls=JSONEncoder)
+
 
 def parse_result(results_dict):
     for k in ["adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list"]:

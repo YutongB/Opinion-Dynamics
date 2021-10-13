@@ -4,6 +4,7 @@ from pprint import pformat
 from parseargs import parse_args
 from balance import *
 
+
 def parse_graph(args):
     n = args.size
     edges = args.edges
@@ -41,8 +42,7 @@ def parse_prior(args):
     }
 
 def parse_sim_params(args):
-    if args.coinsfile is not None:
-        gen_coins = toss_coins_list()
+    
 
     return {
         **parse_prior(args),
@@ -52,33 +52,58 @@ def parse_sim_params(args):
         "learning_rate": args.learning_rate,
         "asymptotic_learning_max_iters": args.asym_max_iters,
         "DWeps": args.DWeps,
-        "log": None if args.mode == 'balanced' else True,
+        "log": None if args.mode == 'balanced' else True
     }
 
-def main(args):
+def main():
     time1 = timeit.default_timer()
+   
+    args = parse_args()
+
+    print(args)
 
     gen_graph = parse_graph(args)
     sim_params = parse_sim_params(args)
+
     runs = args.runs if not args.single else 1
 
-    mode = args.mode
+    if args.initfile is not None:
+        print("Using initial parameters f{args.initfile}.")
+        with open(args.initfile, 'r') as f:
+            initdata = json.load(f)
+            coinslist = initdata["coinlist"]
+            initargs = initdata["args"]
+            priors = initdata["priors"]
 
-    print(args)
+            runs = initargs['runs']
+            sim_params = {
+                **sim_params,
+                "max_steps": initargs["max_iter"],
+                "true_bias": initargs["bias"],
+                "tosses_per_iteration": initargs["tosses"],
+                "coinslists": coinslist,
+                "priors": priors
+            }
+
     res = None
 
-    if mode == "complete":
-        print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\nsimulation parameters\n{}".format(
+    if args.mode == "complete":
+        print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\n".format(
             f"ensemble of {runs} simulations" if not args.single else "simulation", 
-            args.size, args.edges, pformat(sim_params)))
+            args.size, args.edges))
 
         if runs == 1:
+            sim_params["coins"] = sim_params["coinslists"][0]
+            sim_params["prior"] = sim_params["priors"][0]
+            del sim_params["coinslists"]
+            del sim_params["priors"]
+
             res = [run_simulation(gen_graph(), **sim_params)]
         elif runs < 1:
             raise Exception("invalid number of runs")
         else:
             res = do_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
-    elif mode == 'balanced':
+    elif args.mode == 'balanced':
         # res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size, m=args.edges)
         res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size)
 
@@ -86,7 +111,7 @@ def main(args):
     fname = "output/res-{}.json".format(timestamp())
     assert(res != None)
 
-    out = {"res": res, "args": vars(args)}
+    out = dict(res=res, args= vars(args), sim_params=sim_params)
     dump_json(out, fname)
     print("Wrote results to", fname)
 
@@ -95,5 +120,5 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(parse_args())
+    main()
 
