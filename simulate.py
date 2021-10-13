@@ -41,6 +41,9 @@ def parse_prior(args):
     }
 
 def parse_sim_params(args):
+    if args.coinsfile is not None:
+        gen_coins = toss_coins_list()
+
     return {
         **parse_prior(args),
         "max_steps": args.max_iter,
@@ -49,7 +52,7 @@ def parse_sim_params(args):
         "learning_rate": args.learning_rate,
         "asymptotic_learning_max_iters": args.asym_max_iters,
         "DWeps": args.DWeps,
-        "log": None if args.mode == 'balanced' else True
+        "log": None if args.mode == 'balanced' else True,
     }
 
 def main(args):
@@ -83,8 +86,8 @@ def main(args):
     fname = "output/res-{}.json".format(timestamp())
     assert(res != None)
 
-    out = {"res": res, "args": args}
-    dump_results(out, fname)
+    out = {"res": res, "args": vars(args)}
+    dump_json(out, fname)
     print("Wrote results to", fname)
 
     time2 = timeit.default_timer()

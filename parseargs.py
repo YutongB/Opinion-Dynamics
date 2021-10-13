@@ -14,10 +14,6 @@ def parser_handle_graph(parser):
 
     parser.add_argument('-x', "--mode", choices=["complete", "balanced"], help="what way to run the simulations", default="complete")
 
-    parser.add_argument('--test_DW', action="store_true", help="test various values of DWeps in same simulation")
-
-    parser.add_argument("--DWeps", type=float, help="Threshold for ignoring the opinion for DW update rule; use 1 to use normal update rule", default=1)
-
     mean = parser.add_mutually_exclusive_group()
     mean.add_argument("--mean_range", nargs=2, default=[0.0, 1.0], type=float,
     metavar=("MEAN_FROM", "MEAN_TO"))
@@ -35,6 +31,19 @@ def parser_handle_ensemble(parser):
     ensemble.add_argument("-r", "--runs", default=20, type=int,
                         help="number of simulation runs in the ensemble")
 
+
+def parser_handle_coins(parser):
+    parser.add_argument("--coinfile", help="filename with coin lists")
+
+    parser.add_argument("-m", "--max_iter", "--max_steps", default=1000, type=int,
+                        help="maximum number of iterations per simulation")
+
+    parser.add_argument("-t", "--tosses",  "--tosses-per-iter", 
+                        default=10, type=int, help="number of tosses per iteration")
+
+    parser.add_argument("-b", "--bias", "--true_bias", default=0.5, type=float, help="true bias of coin")
+    
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Opinion dynamics simulation, Yutong Bu 2021',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -43,16 +52,16 @@ def parse_args():
 
     parser_handle_ensemble(parser)
 
-    parser.add_argument("-m", "--max_iter", "--max_steps", default=1000, type=int,
-                        help="maximum number of iterations per simulation")
-    
-    parser.add_argument("-b", "--bias", "--true_bias", default=0.5, type=float, help="true bias of coin")
+    parser_handle_coins(parser)
+
+    # parser.add_argument('-s', "--seed", type=int, help="Random seed to seed the random number generators", default=None)
+
+    parser.add_argument('--test_DW', action="store_true", help="test various values of DWeps in same simulation")
+
+    parser.add_argument("--DWeps", type=float, help="Threshold for ignoring the opinion for DW update rule; use 1 to use normal update rule", default=1)
 
     parser.add_argument("-a", "--asym-max-iters", "--asymptotic_max_iters", 
                         default=10, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
-
-    parser.add_argument("-t", "--tosses",  "--tosses-per-iter", 
-                        default=10, type=int, help="number of tosses per iteration")
 
     # TODO: parameter for dice (n)
 

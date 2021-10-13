@@ -154,7 +154,7 @@ g.vp.prior_mean.a
 
 # %%
 last_results_fname = "output/res-{}.json".format(timestamp())
-dump_results(res, last_results_fname)
+dump_json(res, last_results_fname)
 
 res_read = read_results(last_results_fname)
 

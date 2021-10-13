@@ -590,33 +590,23 @@ def do_ensemble_parallel(runs=1000, max_workers=10, gen_graph=None, sim_params=N
 # from dumping a numpy array to json : https://stackoverflow.com/a/47626762
 
 
-class NumpyEncoder(json.JSONEncoder):
+class JSONEncoder(json.JSONEncoder):
     def default(self, obj):
-
+        if isinstance(obj, type(namedtuple)):
+            return self.default(obj._asdict())
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         # list of ndarrays
         if isinstance(obj, list):
-            if len(obj) != 0 and isinstance(obj[0], np.ndarray):
-                return [el.tolist() for el in obj]
+            return [self.default(el) for el in obj]
         return json.JSONEncoder.default(self, obj)
 
 
-def dump_results(results, filename):
-    if isinstance(results, object):
-        return dump_dict(results, filename)
-
+def dump_json(results, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
-        # convert namedtuple to dictionary
-        json.dump([r._asdict() for r in results], f, cls=NumpyEncoder)
-
-
-def dump_dict(d, filename):
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, 'w') as f:
-        json.dump(d, f, cls=NumpyEncoder)
-
+        # serialise results to be dumped to JSON
+        json.dump(results, f, cls=JSONEncoder)
 
 def parse_result(results_dict):
     for k in ["adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list"]:

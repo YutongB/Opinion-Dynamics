@@ -1,4 +1,4 @@
-from sim import adjacency_mat, friendliness_mat, timestamp, dump_dict, init_simulation
+from sim import adjacency_mat, friendliness_mat, timestamp, dump_json, init_simulation
 from simulate import parse_graph, parse_prior
 from parseargs import parser_handle_graph, parser_handle_ensemble
 import argparse
@@ -23,7 +23,7 @@ def main(args):
     
 
     fname = "output/graph-{}.json".format(timestamp())
-    dump_dict(results, fname)
+    dump_json(results, fname)
     print("Wrote results to", fname)
 
 
