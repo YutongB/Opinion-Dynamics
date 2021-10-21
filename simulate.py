@@ -93,8 +93,8 @@ def main():
             args.size, args.edges))
 
         if runs == 1:
-            sim_params["coins"] = sim_params["coinslists"][0]
-            sim_params["prior"] = sim_params["priors"][0]
+            sim_params["coinslist"] = sim_params["coinslists"][0]
+            sim_params["prior_mean"], sim_params["prior_sd"] = sim_params["priors"][0]
             del sim_params["coinslists"]
             del sim_params["priors"]
 
