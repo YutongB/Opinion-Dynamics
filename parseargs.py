@@ -71,7 +71,7 @@ def parse_args():
     parser.add_argument("-a", "--asym-max-iters", "--asymptotic_max_iters",
                         default=10, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
 
-    parser.add_argument("-u", "--learning-rate", "--mu", default=0.5, type=float,
+    parser.add_argument("-u", "--learning-rate", "--mu", default=0.25, type=float,
                         help="", metavar="MU")
 
     args = parser.parse_args()
