@@ -636,7 +636,12 @@ def dump_json(results, filename):
         json.dump(results, f, cls=JSONEncoder)
 
 
-def parse_result(results_dict):
+def parse_result(results):
+    results_dict = {}
+    for i, label in enumerate(["steps", "asymptotic", "coins", "mean_list", "std_list",
+                         "final_distr", "initial_distr", "friendliness", "adjacency"]):
+        results_dict[label] = results[i]
+
     for k in ["adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list"]:
         results_dict[k] = np.asarray(results_dict[k])
 
@@ -645,7 +650,12 @@ def parse_result(results_dict):
 
 def read_results(filename):
     with open(filename, 'r') as f:
-        return [parse_result(r) for r in json.load(f)]
+        top = json.load(f)
+        res = top['res']
+        args = top['args']
+        sim_args = top['sim_params']
+
+        return [parse_result(r) for r in res]
         #results = list(map(parse_result, results))
 
 
