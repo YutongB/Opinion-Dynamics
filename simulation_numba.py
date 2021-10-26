@@ -26,6 +26,14 @@ def do_simulation(adj, beliefs, true_bias=0.6, threshold=0.01, time_threshold=10
     
     The num_change return value is mostly irrelevant, it is there for some debugging purposes in the past
     But I don't use it anymore
+    
+    Return values:
+    t: network asymp time, ie the time which the last node asymps
+    asymp_time: an array of length n, describing how many consecutive time steps each node satisfies the asymp condition
+                NOTE that t != max(asymp_time)
+    asymp_median: an array of length n, describing which bias the agent settles on, if the node asymps
+                  if the node doesn't asymps, has a value of 0.0
+    heads_list: the specific sequence of coin tosses used in this simulation
     """
     bias_list = np.linspace(0,1,beliefs.shape[1])
     heads_list = np.random.binomial(1, true_bias, size=num_iter)
@@ -265,7 +273,22 @@ def ba_graph(n=10,m=5):
             adj[choice, i] = 1
     
     return adj
+
+
+def get_beliefs_from_nx(g):
+    """
+    Get a 2D beliefs array from a networkx Graph. Each node in the Graph object must have a filled 'prior' parameter
+    THe return array have shape (number of nodes, bias length)
+    """
+    bias_len = len(g.nodes[0]['prior'])
+    n = g.number_of_nodes()
+    beliefs = np.zeros((n, bias_len), dtype=float)
     
+    for node, prior in g.nodes(data='prior'):
+        beliefs[node] = prior
+    
+    return beliefs
+
 
 def get_adj_from_nx(g):
     """
@@ -1249,6 +1272,7 @@ def read_ba_balance():
     nonzero_df = df[df > 0]
     nonzero_df2 = df2[df2 > 0]
     
+    print(df.describe())
     print(nonzero_df.describe())
     print(nonzero_df2.describe())
     print(nonzero_df.quantile(0.9))
@@ -1342,3 +1366,4 @@ def example_balance():
 
 if __name__ == '__main__':
     plt.rcParams.update({'font.size': 17})
+    read_ba_balance()
