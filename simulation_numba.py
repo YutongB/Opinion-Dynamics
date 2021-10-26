@@ -851,7 +851,6 @@ def test_ba_hist_opponents():
     adj = get_adj_from_nx(g)
     repetitions = 1000
     
-    @njit
     def parallel_sims(adj, n=1000):
         median_list = []
         enemies_agree_list = []
