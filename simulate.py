@@ -52,6 +52,7 @@ def parse_sim_params(args):
         "learning_rate": args.learning_rate,
         "asymptotic_learning_max_iters": args.asym_max_iters,
         "DWeps": args.DWeps,
+        "EF": None if args.EF == -1 else args.EF,
         "log": None if args.mode == 'balanced' else True
     }
 

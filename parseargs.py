@@ -68,6 +68,9 @@ def parse_args():
     parser.add_argument("--DWeps", type=float,
                         help="Threshold for ignoring the opinion for DW update rule; use 1 to use normal update rule", default=1)
 
+    parser.add_argument("--EF", type=float,
+                        help="Threshold for flipping edge weights on enemies; use -1 to not flip edge weights", default=-1)
+
     parser.add_argument("-a", "--asym-max-iters", "--asymptotic_max_iters",
                         default=10, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
 

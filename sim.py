@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import cache
 from operator import pos
-from scipy.stats import norm, binom
+from scipy.stats import norm, binom, entropy
 from numpy.random import seed, uniform
 import numpy as np
 import graph_tool.all as gt
@@ -328,6 +328,18 @@ def avg_dist_in_belief(friendliness, posterior_distr):
     avg_dist_in_belief = summation * divisor[:, None]
     return avg_dist_in_belief
 
+def edge_flip(friendliness, prior_distr, correlation_threshold=None): 
+    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.entropy.html
+    if correlation_threshold is None:
+        return friendliness
+    n = friendliness.shape[0]
+    for i in range (n): 
+        for j in range (n): 
+            if friendliness[i][j] == ADJ_ENEMY and np.entropy(prior_distr[i], prior_distr[j]) < correlation_threshold:
+                # entropy is 0..infty; 0 if same distr
+                friendliness[i][j] = ADJ_FRIEND
+    return friendliness
+
 
 def DW_update(friendliness, prior_distr, DWeps):
     # NOTE: DWeps = 1 makes this function do nothing.
@@ -389,7 +401,7 @@ EPSILON = 0
 
 
 def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10,
-                    friendliness=None, DWeps=1, coins=None):
+                    friendliness=None, DWeps=1, coins=None, EF=None):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -401,6 +413,8 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
 
     if DWeps != 1:  # use the DW update rule
         friendliness = DW_update(friendliness, prior_distr, DWeps)
+    
+    friendliness = edge_flip(friendliness, prior_distr, EF)
 
     if coins is None:
         # simulate an independent coin toss
@@ -455,7 +469,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
-                   log=None, DWeps=1, coinslist=None):
+                   log=None, DWeps=1, EF=None, coinslist=None):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -494,7 +508,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate,
             friendliness=friendliness,
             num_coins=tosses_per_iteration,
-            DWeps=DWeps, coins=coins)
+            DWeps=DWeps, EF=None, coins=coins)
 
         steps += 1
         if log is not None:
