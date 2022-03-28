@@ -321,7 +321,6 @@ def avg_dist_in_belief(friendliness, posterior_distr):
     # calculate the difference in belief for node i to node j
     diff_in_belief = ((xj - xi).T * friendliness).T
     summation = np.sum(diff_in_belief, axis=1)
-
     # sums over the columns
     divisor = np.reciprocal(np.sum(np.abs(friendliness), axis=1))
 
@@ -334,19 +333,23 @@ def DW_update(friendliness, prior_distr, DWeps):
     # NOTE: DWeps = 1 makes this function do nothing.
     if DWeps == 1:
         return friendliness
-    # if |prior x - prior y| > DWesp and friendliness[x][y] != 0, then ignore and friendliness[x][y] = 0
-
     n = friendliness.shape[0]
 
+    # if |prior x - prior y| > DWesp and friendliness[x][y] != 0, then ignore and friendliness[x][y] = 0
     xi = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES)
                          ).transpose((1, 0, 2))
     xj = np.broadcast_to(prior_distr, (n, n, BIAS_SAMPLES))
-    # calculate the difference in belief for node i to node j
-    # diff_in_belief = ((np.abs(xj - xi)).T * friendliness).T
-    f = friendliness != 0
 
-    diff_in_belief = np.abs(((xj - xi).T * f).T)
-    mask = np.any(diff_in_belief > DWeps, axis=2)
+    # calculate the difference in belief for node i to node j
+    f = friendliness != 0
+    # here, diff_in_belief is a distribution for each node i and node j
+    diff_in_belief = np.abs(((xj - xi).T * f).T)   # shape: (n, n, BIAS_SAMPLES)
+    # if any point within the difference in belief distribution is > DWeps, we will set
+    # the friendliness of that to zero.
+    mask = np.any(diff_in_belief <= DWeps, axis=2)
+    if np.any(~mask):
+        print("DEBUG: friend removed!","friend relationship removed = ", (~mask).sum()//2)
+        
     friendliness = friendliness * mask
 
     return friendliness
@@ -469,6 +472,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
 
     # For now, static friendliness; TODO: update friendliness dynamically. (Hi Christine!)
     friendliness = friendliness_mat(g)
+    init_friendliness = friendliness
 
     if progress is None:
         progress = make_progress()
