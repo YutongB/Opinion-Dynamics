@@ -7,13 +7,14 @@ from generate_graph import two_opposing_groups, unbalanced_triangle, visualise_g
 import matplotlib.pyplot as plt
 import os, sys
 import pandas as pd
+from numba import njit, prange
 
 
 """
 Main purpose is run the automaton and store the prior at each iteration. The priors can then be fed to analyse.py
 to produce relevant plots.
 
-If you want to run an ensemble of simulations to collect statistics, better to use simulation_numba.py 
+If you want to run an ensemble of simulations to collect statistics, better to use simulation_numba.py
 """
 
 
@@ -24,7 +25,7 @@ class Simulation:
         Supply coin_obs_file with an output folder to reuse the same sequence of coin tosses
         Alternatively, directly assign the sequence of coin tosses to self.heads_list and self.tosses_list
         """
-    
+
         # TODO remove bias_len and infer it from the length of the prior
         self.g = nx.Graph(graph)
         self.true_bias = true_bias
@@ -66,10 +67,10 @@ class Simulation:
         for node in self.g:
             norm = np.sum(self.g.nodes[node]['prior'] * prob)
             self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-            
+
         norm = np.sum(self.beliefs_control * prob)
         self.beliefs_control = self.beliefs_control * prob / norm
-        
+
         return num_heads, self.tosses_per_iteration
 
 
@@ -92,7 +93,7 @@ class Simulation:
                     diff = neighbour_pos - self_pos
                     new_pos += edge_weight * diff
                     total_edge_weight += np.abs(edge_weight)
-                
+
                 if total_edge_weight > 0:
                     if isinstance(learning_rate, (list, tuple, np.ndarray)):
                         new_pos *= learning_rate[i] / total_edge_weight
@@ -114,16 +115,16 @@ class Simulation:
                     if edge_weight < 0:
                         neighbour_pos = 1 - neighbour_pos
                         neighbour_pos /= neighbour_pos.sum()
-                        
+
                     neighbour_pos = neighbour_pos + base_pos
 
                     neighbour_pos /= neighbour_pos.sum()
-                    
+
                     self_pos *= neighbour_pos
                 self_pos /= self_pos.sum()
-                
+
                 self.g.nodes[i]['prior'] = self_pos
-        
+
         elif method == 2:
             for i in self.g:
                 # bayesian-like
@@ -138,12 +139,12 @@ class Simulation:
                         neighbour_pos = self.g.nodes[j]['self_pos'] + base_pos
 
                     neighbour_pos /= neighbour_pos.sum()
-                    
+
                     self_pos *= neighbour_pos
                 self_pos /= self_pos.sum()
-                
+
                 self.g.nodes[i]['prior'] = self_pos
-                
+
         elif method == 3:
             # convolution
             print('a')
@@ -152,7 +153,7 @@ class Simulation:
                 for j in self.g.neighbors(i):
                     # TODO implement learning rate. For now, assume no effect from learning rate
                     self_pos = np.convolve(self_pos, self.g.nodes[j]['self_pos'], mode='valid')
-                    
+
                 self_pos /= self_pos.sum()
                 self.g.nodes[i]['prior'] = self_pos
 
@@ -164,7 +165,7 @@ class Simulation:
                 for data in self.g.nodes[i]['prior']:
                     f.write(str(data) + ' ')
                 f.write('\n')
-                
+
         with open(f'{self.output_direc}/data/control.txt', 'a') as f:
             for data in self.beliefs_control:
                 f.write(str(data) + ' ')
@@ -179,7 +180,7 @@ class Simulation:
                 for i in prior:
                     f.write(str(i) + ' ')
                 f.write('\n')
-                
+
         with open(f'{self.output_direc}/data/control.txt', 'w+') as f:
             for i in self.beliefs_control:
                 f.write(str(i) + ' ')
@@ -197,18 +198,18 @@ class Simulation:
             f.write('Iteration Num_heads Num_tosses\n')
             for i in range(len(self.heads_list)):
                 f.write(f'{i+1} {self.heads_list[i]} {self.tosses_list[i]}\n')
-                
+
         with open(f'{self.output_direc}/data/asymp.txt', 'w+') as f:
             for i in self.get_proper_asymp_time_unsorted:
                 f.write(f'{i}\n')
-            
-                
+
+
     def save_adjacency_matrix(self, t):
         with open(f'{self.output_direc}/data/adj/{t}.txt', 'w+') as f:
             f.write('Number of nodes: {}\n'.format(self.g.number_of_nodes()))
             for u, v, correlation in self.g.edges.data('correlation'):
                 f.write('{} {} {}\n'.format(u, v, correlation))
-                
+
 
     def update_node_asymp(self, threshold=0.01):
         """
@@ -225,16 +226,16 @@ class Simulation:
             else:
                 self.g.nodes[node]['asymp_time'] = [0, -1, -1]  # (num consecutive t in asymp, mode, apparent mode)
                 self.g.nodes[node]['old prior'] = self.g.nodes[node]['prior'].copy()
-        
+
         return num_asymp
-        
+
 
     def do_simulation(self, num_iter=10, learning_rate=0.25, blend_method=0):
         """
         Runs the automaton and returns the number of time steps to asymp, 0 if did not asymp within num_iter
         """
         self.save_graph()
-        
+
         t = 1
         asymptotic_learning_time = 0
 
@@ -249,13 +250,13 @@ class Simulation:
                 for node in self.g:
                     norm = np.sum(self.g.nodes[node]['prior'] * prob)
                     self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-                    
+
                 norm = np.sum(self.beliefs_control * prob)
                 self.beliefs_control = self.beliefs_control * prob / norm
 
                 self.blend_pos(learning_rate=learning_rate, method=blend_method)
                 self.write_prior()
-                    
+
                 if self.update_node_asymp() == self.g.number_of_nodes():
                     asymptotic_learning_time += 1
                     if asymptotic_learning_time >= self.asymp_time_threshold:
@@ -267,7 +268,7 @@ class Simulation:
                 else:
                     asymptotic_learning_time = 0
                 t += 1
-                
+
             if t > len(self.heads_list) and t <= num_iter:
                 print('')
                 print('All predetermined coin tosses used. Will now generate new tosses')
@@ -292,7 +293,7 @@ class Simulation:
             else:
                 asymptotic_learning_time = 0
             t += 1
-            
+
         print('')
         self.save_tosses()
         return 0
@@ -304,10 +305,10 @@ class Simulation:
         self.heads_list = []
         self.tosses_list = []
         self.save_graph()
-        
+
         t = 1
         asymptotic_learning_time = 0
-        
+
         while t <= num_iter:
             if t % 100 == 0:
                 print('Iteration {}'.format(t))
@@ -327,19 +328,19 @@ class Simulation:
                     return t
             else:
                 asymptotic_learning_time = 0
-            
+
             t += 1
 
         self.save_tosses()
-        
+
     def do_simulation_without_print_and_save(self, num_iter=1000, learning_rate=0.25, blend_method=0):
         """
         Same as do_simulation, except we don't write any information.
         simulation_numba.py now exists, so use that instead for coputational speed
-        
+
         This function is still here so nothing in engine.py breaks for now
         """
-        
+
         t = 1
         asymptotic_learning_time = 0
 
@@ -350,9 +351,9 @@ class Simulation:
                 for node in self.g:
                     # norm = np.sum(self.g.nodes[node]['prior'] * prob)
                     # self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob / norm
-                    self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob 
+                    self.g.nodes[node]['self_pos'] = self.g.nodes[node]['prior'] * prob
                     self.g.nodes[node]['self_pos'] = self.g.nodes[node]['self_pos'] / self.g.nodes[node]['self_pos'].sum()
-                    
+
                 norm = np.sum(self.beliefs_control * prob)
                 self.beliefs_control = self.beliefs_control * prob / norm
 
@@ -380,9 +381,9 @@ class Simulation:
             else:
                 asymptotic_learning_time = 0
             t += 1
-            
+
         return 0
-    
+
     def do_simulation_without_signal_and_saves(self, num_iter=10, learning_rate=0.25, blend_method=0):
         for t in range(num_iter):
             for i in self.g:
@@ -402,21 +403,21 @@ class Simulation:
         # note: max_lower_width is a negative number if the node's belief is smaller than the true bias
         max_upper_width = 0.0
         max_lower_width = 0.0
-        
+
         for n in self.g:
             prior = self.g.nodes[n]['prior']
             max_arg = np.argmax(prior)
             bias = max_arg * self.bias_list[1]
             width = self.true_bias - bias
-            
+
             if width > max_upper_width:
                 max_upper_width = width
             elif width < max_lower_width:
                 max_lower_width = width
-            
+
         return max_upper_width, max_lower_width
-        
-    
+
+
     @property
     def do_all_nodes_agree(self):
         # True if all nodes have the same posteriors. To cheat, only check if their argmax are equal
@@ -424,8 +425,8 @@ class Simulation:
             if np.argmax(self.g.nodes[node]['prior']) != np.argmax(self.g.nodes[0]['prior']) :
                 return False
         return True
-        
-        
+
+
     def number_of_correct_nodes(self, opinion_range=None, criteria='mode'):
         # returns the number of nodes with modes inside the opinion_range (bounds inclusive)
         # possible criteria: 'mode' (default), 'mean'
@@ -441,7 +442,7 @@ class Simulation:
                 num_correct += 1
         return num_correct
 
-    
+
     @property
     def get_asymp_time(self):
         # returns the num of consecutive t that each node spends in asymp learning, in ascending order.
@@ -449,35 +450,35 @@ class Simulation:
         data = [i[1] for i in self.g.nodes(data='asymp_time')]  # i[0] here is node label, which we don't want
         data.sort(key=lambda x: x[0])
         return data
-    
-    
+
+
     @property
     def get_proper_asymp_time(self):
         data = self.get_asymp_time
         asymp_time = len(self.heads_list)
         return [[asymp_time - i[0], i[1], i[2]] for i in data]
-        
+
     @property
     def get_proper_asymp_time_unsorted(self):
         data = [i[1] for i in self.g.nodes(data='asymp_time')]
         asymp_time = len(self.heads_list)
         return [[asymp_time - i[0], i[1], i[2]] for i in data]
-        
-        
+
+
     @property
     def is_first_node_correct(self):
         return self.get_asymp_time[-1][1] == self.get_asymp_time[-1][2]
-        
-    
+
+
     @property
     def get_apparent_true_bias(self):
         return self.beliefs_control
 
-
+@njit
 def put_smaller_number_first(number):
-    return min(number), max(number)
+    return np.min(number), np.max(number)
 
-
+@njit
 def resized_range(number):
     return np.random.random() * (number[1] - number[0]) + number[0]
 
@@ -485,29 +486,29 @@ def resized_range(number):
 def gaussian(bias_list, mean=0.5, fwhm=0.5):
     not_norm = np.exp(-4 * np.log(2) * ((bias_list - mean) / fwhm) ** 2)
     return not_norm / not_norm.sum()
-    
-    
+
+
 def gaussian_stddev(bias_list, mean=0.5, stddev=0.25):
     not_norm = np.exp(-((bias_list-mean) / stddev)**2 / 2)
     return not_norm / not_norm.sum()
-    
+
 
 def fwhm_to_std(fwhm):
     factor = 2* np.sqrt(2* np.log(2))
     return fwhm / factor
-    
+
 
 def uniform_distribution(bias_len=21):
     return np.ones(bias_len, dtype=float) / bias_len
 
-    
+
 def make_evenly_spaced_priors(g, fwhm=0.4, bias_len=21):
     bias_list = np.linspace(0, 1, bias_len)
     mean_list = np.linspace(0, 1, g.number_of_nodes())
-    
+
     for count, mu in enumerate(mean_list):
         g.nodes[count]['prior'] = gaussian(bias_list, mean=mu, fwhm=fwhm)
-        
+
     return g
 
 
@@ -528,26 +529,46 @@ def randomise_prior(g, mean=(0.0, 1.0), stddev=(0.1, 0.4), bias_len=21):
     return g
 
 
-def randomise_edge_weight(g, edge_weight=(-1, 1), simple_edge_weight=True):
-    edge_weight = put_smaller_number_first(edge_weight)
-    for i, j in g.edges():
-        roll = resized_range(edge_weight)
-        if simple_edge_weight:
-            if roll < 0:
-                roll = -1
-            elif roll > 0:
-                roll = 1
+def randomise_edge_weight(g, edge_weight=(-1, 1), simple_edge_weight=True, include_zero=False):
+    if simple_edge_weight and include_zero:
+        for i, j in g.edges():
+            roll = np.random.choice([-1,0,1])
 
-        if i == j:  # self weight cannot be negative
-            if roll < 0:
-                # NOTE this correction will not reflect input probability distribution if not sym around 0
-                roll *= -1
-            elif roll == 0.0:
-                # should never happen, but it's here just in case
-                roll = 1
-        g.edges[i, j]['correlation'] = roll
+            if i == j:  # self weight cannot be negative
+                if roll < 0:
+                    # NOTE this correction will not reflect input probability distribution if not sym around 0
+                    roll *= -1
+
+            g.edges[i, j]['correlation'] = roll
+
+    elif simple_edge_weight:
+        for i, j in g.edges():
+            roll = np.random.choice([-1,1])
+            if i == j:  # self weight cannot be negative
+                if roll < 0:
+                    # NOTE this correction will not reflect input probability distribution if not sym around 0
+                    roll *= -1
+
+            g.edges[i, j]['correlation'] = roll
+
+    else:
+        edge_weight = put_smaller_number_first(edge_weight)
+        for i, j in g.edges():
+            roll = resized_range(edge_weight)
+            if simple_edge_weight:
+                if roll < 0:
+                    roll = -1
+                elif roll > 0:
+                    roll = 1
+
+            if i == j:  # self weight cannot be negative
+                if roll < 0:
+                    # NOTE this correction will not reflect input probability distribution if not sym around 0
+                    roll *= -1
+            g.edges[i, j]['correlation'] = roll
 
     return g
+
 
 
 def generate_graph(number_of_nodes=10):
@@ -600,19 +621,19 @@ def extend_simulation(input_folder, output_folder='', t=0):
     g = recreate_graph(input_folder, 0)
     if not output_folder:
         output_folder = f'{input_folder}_extended{t}'
-    
+
     simulator = Simulation(g, true_bias=0.6, tosses_per_iteration=1, output_direc=output_folder, coin_obs_file=input_folder, bias_len=21, asymp_time_threshold=t)
-    
+
     if t == 0:
         t = len(simulator.heads_list) * 10
     simulator.asymp_time_threshold = t
     simulator.do_simulation(num_iter=t, blend_method=0, learning_rate=0.25)
-    
+
 
 def main():
     repetitions = 10
     time_list = []
-    
+
     for i in range(repetitions):
         if i % 1 == 0:
             print(i)
@@ -625,7 +646,7 @@ def main():
             simulation.do_simulation_without_print_and_save(num_iter=1000, blend_method=0, learning_rate=0.25)
             time2 = timeit.default_timer()
         time_list.append(time2 - time1)
-    
+
     df = pd.DataFrame({'Result': time_list})
     print(df.describe())
 
