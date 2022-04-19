@@ -4,11 +4,10 @@ from pprint import pformat
 from parseargs import parse_args
 from balance import *
 
-
 def parse_graph(args):
     n = args.size
     edges = args.edges
-    if edges == "friends":
+    if edges == "friends" or edges == "allies":
         generator = lambda: ADJ_FRIEND
     elif edges == "enemies":
         generator = lambda: ADJ_ENEMY
@@ -25,16 +24,28 @@ def parse_prior(args):
 
     prior_mean = args.prior_mean
     prior_sd = args.prior_sd
-    
-    if prior_mean is None:
-        prior_mean = gen_prior_mean(n, mean_range=args.mean_range)
-    elif len(prior_mean) == 1:  # set all nodes to have same prior_mean
-        prior_mean = [prior_mean] * n
 
-    if prior_sd is None:
-        prior_sd = gen_prior_sd(n, fwhm_range=args.fwhm_range, sd_range=args.sd_range)
-    elif len(prior_sd) == 1:  # set all nodes to have same prior_sd
-        prior_sd = [prior_sd] * n
+    def parse_str(s):
+        if s == None:
+            return ['r'] * n
+
+        # 0.5 -> all nodes have 0.5 mean
+        # 0.5,0.4,0.3 -> first node with 0.5 mean, second node with 0.4 mean, rest with 0.3 mean
+        s = [x if x == 'r' else float(x) for x in s.split(",")]
+        # the rest have the same mean as the last one.
+        rest = [s[-1]] * (n-len(s))
+        s += rest
+        return s
+    
+
+    prior_mean_rand = gen_prior_mean(n, mean_range=args.mean_range)
+    prior_mean = parse_str(prior_mean)
+    # use the random value if theres an 'r' there
+    prior_mean = [r if m == 'r' else m for m, r in zip(prior_mean, prior_mean_rand)]
+
+    prior_sd_rand = gen_prior_sd(n, fwhm_range=args.fwhm_range, sd_range=args.sd_range)
+    prior_sd = parse_str(prior_sd)
+    prior_sd = [r if m == 'r' else m for m, r in zip(prior_sd, prior_sd_rand)]
 
     return {
         "prior_mean": prior_mean,
@@ -60,10 +71,12 @@ def main():
    
     args = parse_args()
 
-    print(args)
+    print("Args parsed:", args)
 
     gen_graph = parse_graph(args)
     sim_params = parse_sim_params(args)
+
+    print("Sim params:", sim_params)
 
     runs = args.runs if not args.single else 1
 

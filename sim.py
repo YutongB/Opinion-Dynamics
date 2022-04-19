@@ -389,7 +389,7 @@ EPSILON = 0
 
 
 def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10,
-                    friendliness=None, DWeps=1, coins=None):
+                    friendliness=None, DWeps=1, coins=None, disruption = 0):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -425,7 +425,7 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
         np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
 
     next_prior_distr = normalize_distr(bayes_update)
-
+    next_prior_distr[:disruption] = prior_distr[:disruption]
     # graph_set_prior_distr(g, next_prior_distr.T)
 
     # plot_graph_distr(g)
@@ -455,7 +455,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                    prior_mean=None, prior_sd=None,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
-                   log=None, DWeps=1, coinslist=None):
+                   log=None, DWeps=1, coinslist=None,
+                   disruption = 0):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -494,7 +495,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate,
             friendliness=friendliness,
             num_coins=tosses_per_iteration,
-            DWeps=DWeps, coins=coins)
+            DWeps=DWeps, coins=coins, 
+            disruption=disruption)
 
         steps += 1
         if log is not None:
