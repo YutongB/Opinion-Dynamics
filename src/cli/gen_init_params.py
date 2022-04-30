@@ -2,19 +2,16 @@
 Initialise simulation parameters
 - Generate coin tosses
 - Generate initial prior distributions
-
 """
 
 
 import numpy as np
 import argparse
-from parseargs import parser_handle_ensemble, parser_handle_initial
-from sim import dump_json, timestamp, generate_priors
+from src.analyse.results import dump_json
+from src.cli.parseargs import parser_handle_ensemble, parser_handle_initial
+from src.simulation.initsim import generate_priors
+from src.utils import timestamp
 
-"""
-
-
-"""
 
 def toss_coins_binom(bias=0.5, num_coins=1):
     return np.random.binomial(num_coins, bias)

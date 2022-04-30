@@ -1,7 +1,8 @@
 from enum import IntEnum
 import graph_tool.all as gt
 import numpy as np
-from sim import *
+from src.simulation.sim import *
+from src.simulation.graphs import create_model_graph
 
 
 class ClusterVisitor(gt.DFSVisitor):

@@ -1,8 +1,13 @@
-from sim import adjacency_mat, friendliness_mat, timestamp, dump_json, init_simulation
-from simulate import parse_graph, parse_prior
-from parseargs import parser_handle_graph, parser_handle_ensemble
 import argparse
 from pprint import pformat
+
+from src.cli.simulate import parse_prior
+from src.cli.parseargs import parser_handle_graph, parser_handle_ensemble
+from src.analyse.results import dump_json
+from src.simulation.graphs import make_graph_generator
+from src.simulation.initsim import init_simulation
+from src.simulation.sim import adjacency_mat, friendliness_mat
+from src.utils import timestamp
 
 def gen_result(gen_graph, prior):
     g = gen_graph()
@@ -14,7 +19,7 @@ def gen_result(gen_graph, prior):
     }
 
 def main(args):
-    gen_graph = parse_graph(args)
+    gen_graph = make_graph_generator(n=args.size, edges=args.edges)
     prior = parse_prior(args)
 
     print("Generating {} complete graph(s) of {} nodes with {} relationship\nprior\n{}".format(args.runs, args.size, args.edges, pformat(prior)))

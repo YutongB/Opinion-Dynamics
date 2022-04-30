@@ -1,23 +1,12 @@
+import json
 import timeit
-from sim import *
-from pprint import pformat
-from parseargs import parse_args
-from balance import *
-
-def parse_graph(args):
-    n = args.size
-    edges = args.edges
-    if edges == "friends" or edges == "allies":
-        generator = lambda: ADJ_FRIEND
-    elif edges == "enemies":
-        generator = lambda: ADJ_ENEMY
-    elif edges == "random":
-        generator = gen_relationship_binary
-    elif edges == "random_unif":
-        generator = gen_relationship_uniform
-    
-
-    return lambda: gen_complete_graph(n, generator)
+from src.cli.parseargs import parse_args
+from src.analyse.results import dump_json
+from src.simulation.balance import run_balanced
+from src.simulation.graphs import make_graph_generator
+from src.simulation.runsim import run_ensemble, run_simulation
+from src.simulation.sim import gen_prior_mean, gen_prior_sd
+from src.utils import timestamp
 
 def parse_prior(args):
     n = args.size
@@ -74,7 +63,7 @@ def main():
 
     print("Args parsed:", args)
 
-    gen_graph = parse_graph(args)
+    gen_graph = make_graph_generator(n=args.size, edges=args.edges)
     sim_params = parse_sim_params(args)
 
     print("Sim params:", sim_params)
@@ -117,7 +106,7 @@ def main():
         elif runs < 1:
             raise Exception("invalid number of runs")
         else:
-            res = do_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
+            res = run_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
     elif args.mode == 'balanced':
         # res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size, m=args.edges)
         res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size)
@@ -128,7 +117,10 @@ def main():
 
     out = dict(res=res, args= vars(args), sim_params=sim_params)
     dump_json(out, fname)
-    print("Wrote results to", fname)
+    print("Wrote latest results to", fname)
+    with open('output/last_results', 'w') as f:
+        f.write(fname)
+    
 
     time2 = timeit.default_timer()
     print(f'Time taken: {(time2 - time1):.2f} seconds')

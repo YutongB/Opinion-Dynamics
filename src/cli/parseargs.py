@@ -5,11 +5,6 @@ def parser_handle_graph(parser):
     parser.add_argument("-n", "--size", default=10,
                         type=int, help="graph size")
 
-    # TODO: overhaul how we read in edges vs friendliness
-    #       currently -e corresponds to how we define friendliness
-    #       we would like to have friends/enemies defined by ratio
-    #       (eg: 10^4 friends:1 enemy), so this option needs to allow both
-    #       enum & number or something like that
     parser.add_argument('-e', "--edges", choices=["friends", "allies", "enemies", "random", "random_unif"],
                         help="type of each edge (friendliness) on generated graph", default="random")
 
