@@ -103,7 +103,7 @@ def main():
     fname = "output/res-{}.json".format(timestamp())
     assert(res != None)
 
-    out = dict(res=res, args= vars(args), sim_params=sim_params)
+    out = dict(results=res, args=vars(args), sim_params=sim_params)
     dump_json(out, fname)
     print("Wrote latest results to", fname)
     with open('output/last_results', 'w') as f:

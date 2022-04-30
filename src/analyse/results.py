@@ -61,26 +61,9 @@ def parse_result(results):
 def read_results(filename):
     with open(filename, 'r') as f:
         top = json.load(f)
-        res = top['res']
-        args = top['args']
-        sim_args = top['sim_params']
-
-        print("sim params ------")
-        for k, v in sim_args.items():
-            print(f"{k} - {v}")
-
-        return [parse_result(r) for r in res]
-
-
-def read_results(filename):
-    with open(filename, 'r') as f:
-        top = json.load(f)
-        res = top['res']
-        args = top['args']
-        sim_args = top['sim_params']
-
-        return [parse_result(r) for r in res]
-        #results = list(map(parse_result, results))
+        # results, sim_params, args
+        top['results'] = [parse_result(res) for res in top['results']]
+        return top
 
 
 def matrix_to_edge_list(mat):
