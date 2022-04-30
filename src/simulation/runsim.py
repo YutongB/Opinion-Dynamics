@@ -41,7 +41,7 @@ def make_progress():
 """ End rich progress bars """
 
 
-def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
+def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    prior=None,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
@@ -56,6 +56,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     coins_list = []
     mean_list = []
     std_list = []
+    asymptotic = []
     iters_asymptotic_learning = 0
     prior_distr = initial_distr.copy()
     distrs.append(prior_distr)
@@ -100,10 +101,12 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
         # system reaches asymptotic learning when all agents reach asymptotic learning   
         largest_change = np.max(np.abs(posterior - prior_distr), axis=1)
         largest_peak = 0.01 * np.max(prior_distr, axis=1)
-        if np.all(largest_change < largest_peak):
+        is_asymptotic = np.all(largest_change < largest_peak)
+        if is_asymptotic:
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
+        asymptotic.append(iters_asymptotic_learning)
 
         progress.update(task_id, advance=1)
 
@@ -118,7 +121,6 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             return
 
     adjacency = adjacency_mat(g)
-    asymptotic = iters_asymptotic_learning == asymptotic_learning_max_iters
 
     if log is None:
         return SimResults(steps=steps,

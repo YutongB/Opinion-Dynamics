@@ -13,6 +13,7 @@ class AnalyseSimulation:
         self.args = args
         self.sim_params = sim_params
         self.idx = idx
+        self.asymptotic = self.results.asymptotic[-1] == self.sim_params["asymptotic_learning_max_iters"]
         self.n = len(results.initial_distr)
 
     def graph(self):
@@ -29,11 +30,17 @@ class AnalyseSimulation:
         plt.xlabel("Step")
         plt.ylabel("Number of heads")
 
+    def plot_asymptotic_learning_steps(self):
+        sim = self.results
+        plt.plot(sim.asymptotic)
+        plt.xlabel("Step")
+        plt.ylabel("Number of consecutive asymptotic learning steps")
+
     def plot_confidence_in_belief(self, belief: float, opacity=.8):
         # belief (theta)
         sim = self.results
         try:
-            belief_idx = list(np.linspace(0, 1, BIAS_SAMPLES)).index(belief)
+            belief_idx = [round(x, 2) for x in np.linspace(0, 1, BIAS_SAMPLES)].index(belief)
         except ValueError:
             raise ValueError(f"Invalid belief θ={belief}")
 

@@ -70,7 +70,7 @@ def parse_args():
     parser.add_argument("--disruption", type=int,
                         help="number of nodes keeping the same", default=0)
     parser.add_argument("-a", "--asym-max-iters", "--asymptotic_max_iters",
-                        default=10, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
+                        default=99, type=int, help="number of iterations for asymptotic learning", metavar="ASYM_MAX_ITERS")
 
     parser.add_argument("-u", "--learning-rate", "--mu", default=0.25, type=float,
                         help="", metavar="MU")
