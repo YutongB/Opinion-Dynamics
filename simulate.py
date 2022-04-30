@@ -63,6 +63,7 @@ def parse_sim_params(args):
         "learning_rate": args.learning_rate,
         "asymptotic_learning_max_iters": args.asym_max_iters,
         "DWeps": args.DWeps,
+        "disruption": args.disruption,
         "log": None if args.mode == 'balanced' else True
     }
 
@@ -106,10 +107,11 @@ def main():
             args.size, args.edges))
 
         if runs == 1:
-            sim_params["coinslist"] = sim_params["coinslists"][0]
-            sim_params["prior_mean"], sim_params["prior_sd"] = sim_params["priors"][0]
-            del sim_params["coinslists"]
-            del sim_params["priors"]
+            if args.initfile is not None:
+                sim_params["coinslist"] = sim_params["coinslists"][0]
+                del sim_params["coinslists"]
+                sim_params["prior_mean"], sim_params["prior_sd"] = sim_params["priors"][0]
+                del sim_params["priors"]
 
             res = [run_simulation(gen_graph(), **sim_params)]
         elif runs < 1:

@@ -444,7 +444,7 @@ signal.signal(signal.SIGINT, handle_sigint)
 
 SimResults = namedtuple("SimulationResults",
                         ("steps", "asymptotic", "coins", "mean_list", "std_list",
-                         "final_distr", "initial_distr", "friendliness", "adjacency"))
+                         "final_distr", "initial_distr", "friendliness", "adjacency", "distrs"))
 
 
 def adjacency_mat(g):
@@ -463,11 +463,13 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     initial_distr = init_simulation(
         g, prior_mean=prior_mean, prior_sd=prior_sd)
 
+    distrs = []
     coins_list = []
     mean_list = []
     std_list = []
     iters_asymptotic_learning = 0
     prior_distr = initial_distr.copy()
+    distrs.append(prior_distr)
 
     max_steps = int(max_steps)
 
@@ -504,6 +506,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             mean_list.append(mean)
             std_list.append(std_distr(posterior, mean))
             coins_list.append(coins)
+            distrs.append(posterior)
 
         if np.all(np.any(posterior > 0.99, axis=1)):
             iters_asymptotic_learning += 1
@@ -533,7 +536,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                           final_distr=None,
                           initial_distr=None,
                           adjacency=None,
-                          friendliness=None)
+                          friendliness=None,
+                          distrs=None)
 
     return SimResults(steps=steps,
                       asymptotic=iters_asymptotic_learning == asymptotic_learning_max_iters,
@@ -543,7 +547,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
                       final_distr=prior_distr,
                       initial_distr=initial_distr,
                       adjacency=adjacency,
-                      friendliness=friendliness)
+                      friendliness=friendliness,
+                      distrs=distrs)
 
 
 def do_ensemble(runs=1000, gen_graph=None, sim_params=None, simple=False,
