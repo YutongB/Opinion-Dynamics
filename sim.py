@@ -507,8 +507,11 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
             std_list.append(std_distr(posterior, mean))
             coins_list.append(coins)
             distrs.append(posterior)
-
-        if np.all(np.any(posterior > 0.99, axis=1)):
+        
+        # system reaches asymptotic learning when all agents reach asymptotic learning   
+        largest_change = np.max(np.abs(posterior - prior_distr), axis=1)
+        largest_peak = 0.01 * np.max(prior_distr, axis=1)
+        if np.all(largest_change < largest_peak):
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
