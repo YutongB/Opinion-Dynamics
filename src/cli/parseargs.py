@@ -29,7 +29,7 @@ def parser_handle_graph(parser):
     sd = parser.add_mutually_exclusive_group()
     sd.add_argument("--prior_sd", "--sd", type=str, metavar="SD",
                         help="generate prior distrs with these sds, if <n sds specified, the rest have the same sd as the last one")
-    sd.add_argument("--prior_fwhm", "--fwhm", type=float, metavar="FWHM")
+    sd.add_argument("--prior_fwhm", "--fwhm", type=str, metavar="FWHM")
 
 
 def parser_handle_ensemble(parser):

@@ -5,47 +5,35 @@ from src.analyse.results import dump_json
 from src.simulation.balance import run_balanced
 from src.simulation.graphs import make_graph_generator
 from src.simulation.runsim import run_ensemble, run_simulation
-from src.simulation.sim import gen_prior_mean, gen_prior_sd
 from src.utils import timestamp
 
+def fwhm_to_sd(fwhm):
+    # full width half mean = 2 * sqrt(2 * ln(2))
+    if fwhm is None:
+        return None
+    return fwhm / 2.3548200450309493820231386529
+
+
 def parse_prior(args):
-    n = args.size
-
-    prior_mean = args.prior_mean
-    prior_sd = args.prior_sd
-
-    def parse_str(s):
-        if s == None:
-            return ['r'] * n
-
-        # 0.5 -> all nodes have 0.5 mean
-        # 0.5,0.4,0.3 -> first node with 0.5 mean, second node with 0.4 mean, rest with 0.3 mean
-        s = [x if x == 'r' else float(x) for x in s.split(",")]
-        # the rest have the same mean as the last one.
-        rest = [s[-1]] * (n-len(s))
-        s += rest
-        return s
-    
-
-    prior_mean_rand = gen_prior_mean(n, mean_range=args.mean_range)
-    prior_mean = parse_str(prior_mean)
-    # use the random value if theres an 'r' there
-    prior_mean = [r if m == 'r' else m for m, r in zip(prior_mean, prior_mean_rand)]
-
-    prior_sd_rand = gen_prior_sd(n, fwhm_range=args.fwhm_range, sd_range=args.sd_range)
-    prior_sd = parse_str(prior_sd)
-    prior_sd = [r if m == 'r' else m for m, r in zip(prior_sd, prior_sd_rand)]
+    sd = fwhm_to_sd(args.prior_fwhm) if args.prior_sd is None else args.prior_sd
+    sd_range = args.sd_range
+    if sd_range is None:
+        l, r = args.fwhm_range
+        sd_range = fwhm_to_sd(l), fwhm_to_sd(r)
+        assert sd_range[0] != None
 
     return {
-        "prior_mean": prior_mean,
-        "prior_sd": prior_sd,
+        "mean": args.prior_mean,
+        "sd": sd,
+        "n": args.size,
+        "mean_range": args.mean_range,
+        "sd_range": sd_range,
     }
 
-def parse_sim_params(args):
-    
 
+def parse_sim_params(args):
     return {
-        **parse_prior(args),
+        "prior": parse_prior(args),
         "max_steps": args.max_iter,
         "true_bias": args.bias,
         "tosses_per_iteration": args.tosses,

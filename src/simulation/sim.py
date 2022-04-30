@@ -29,22 +29,6 @@ def bias_mat(num_priors):
     return np.tile(np.linspace(0, 1, BIAS_SAMPLES), (num_priors, 1))
 
 
-def fwhm_to_sd(fwhm):
-    # full width half mean
-    # 2 * sqrt(2 * ln(2))  (see wiki) (don't calculate sqrt or ln)
-    return fwhm / 2.3548200450309493820231386529
-
-
-def gen_prior_mean(num_priors, mean_range=(0.0, 1.0)):
-    return uniform(*mean_range, num_priors)
-
-
-def gen_prior_sd(num_priors, fwhm_range=(0.2, 0.8), sd_range=None):
-    if sd_range is not None:
-        # alternatively generate directly from standard deviation
-        return uniform(*sd_range, num_priors)
-    return fwhm_to_sd(uniform(*fwhm_range, num_priors))
-
 
 def prior_distr(prior_mean, prior_sd):
     return norm.pdf(bias(), loc=prior_mean, scale=prior_sd)

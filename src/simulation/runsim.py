@@ -42,7 +42,7 @@ def make_progress():
 
 
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
-                   prior_mean=None, prior_sd=None,
+                   prior=None,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=10, task_id=None, progress=None,
                    log=None, DWeps=1, coinslist=None,
@@ -50,8 +50,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=10,
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
-    initial_distr = init_simulation(
-        g, prior_mean=prior_mean, prior_sd=prior_sd)
+    initial_distr = init_simulation(g, prior=prior)
 
     distrs = []
     coins_list = []
@@ -173,7 +172,7 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble"):
 
             if coinslists is not None:
                 coinslist = coinslists[r]
-                sim_params["prior_mean"], sim_params["prior_sd"] = priors[r]
+                sim_params["prior"] = priors[r]
 
             sim = run_simulation(gen_graph(), coinslist=coinslist, **sim_params,
                                  task_id=task_id, progress=progress)

@@ -9,7 +9,6 @@ import numpy as np
 import argparse
 from src.analyse.results import dump_json
 from src.cli.parseargs import parser_handle_ensemble, parser_handle_initial
-from src.simulation.initsim import generate_priors
 from src.utils import timestamp
 
 
@@ -51,6 +50,7 @@ def main():
     args = parser.parse_args()
 
     runs = args.runs if not args.single else 1
+    
 
     priors = [generate_priors(args.size, args.mean_range, args.fwhm_range) for run in range(runs)]
 
