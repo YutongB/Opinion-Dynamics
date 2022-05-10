@@ -35,7 +35,7 @@ def make_progress():
         "/",
         TimeRemainingColumn(),
         refresh_per_second=5,
-        # transient=True,
+        transient=True,
     )
 
 """ End rich progress bars """
@@ -44,9 +44,10 @@ def make_progress():
 def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    prior=None,
                    true_bias=0.5, learning_rate=0.25,
-                   tosses_per_iteration=10, task_id=None, progress=None,
+                   tosses_per_iteration=1, task_id=None, progress=None,
                    log=None, DWeps=1, coinslist=None,
-                   disruption = 0):
+                   disruption = 0,
+                   hide_progress_after_complete = True):
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -70,12 +71,13 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
     if progress is None:
         progress = make_progress()
 
-    if task_id is None:
-        task_id = progress.add_task("Simulation", total=max_steps)
-    else:
-        progress.start_task(task_id)
-
-    progress.update(task_id, total=max_steps)
+    if progress:
+        if task_id is None:
+            task_id = progress.add_task("Simulation", total=max_steps)
+        else:
+            progress.start_task(task_id)
+    
+        progress.update(task_id, total=max_steps)
 
     steps = 0
     # steps 2-3 of Probabilistic automaton, until t = T
@@ -108,10 +110,12 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
             iters_asymptotic_learning = 0
         asymptotic.append(iters_asymptotic_learning)
 
-        progress.update(task_id, advance=1)
+        if progress:
+            progress.update(task_id, advance=1)
 
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
-            progress.update(task_id, total=i+1, completed=i+1)
+            if progress:
+                progress.update(task_id, total=i+1, completed=i+1)
             break
 
         prior_distr = posterior.copy()
@@ -121,6 +125,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
             return
 
     adjacency = adjacency_mat(g)
+    if progress:
+        progress.update(task_id, visible=not hide_progress_after_complete)
 
     if log is None:
         return SimResults(steps=steps,
@@ -146,7 +152,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                         distrs=distrs)
 
 
-def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble"):
+def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simulation_progress=True):
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
@@ -170,14 +176,16 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble"):
         ensemble = progress.add_task(title, total=runs)
 
         for r in range(runs):
-            task_id = progress.add_task("Sim #{}".format(r+1))
+            if simulation_progress:
+                task_id = progress.add_task("Sim #{}".format(r+1))
 
             if coinslists is not None:
                 coinslist = coinslists[r]
                 sim_params["prior"] = priors[r]
 
             sim = run_simulation(gen_graph(), coinslist=coinslist, **sim_params,
-                                 task_id=task_id, progress=progress)
+                                 progress=progress if simulation_progress else False,
+                                 task_id=task_id if simulation_progress else None)
             results.append(sim)
             progress.update(ensemble, advance=1)
 
