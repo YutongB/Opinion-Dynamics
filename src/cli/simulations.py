@@ -31,10 +31,14 @@ partisan_sd = 0.01
 
 ret = {}
 
+def first_k_with_value_then_random(value, k):
+    # eg: value = 5, k = 3 => "5,5,5,5,5,r" (the rest are treated as random, if any.)
+    return ",".join([str(value)] * k) + ',r'
+
 def run(num_partisans):
     frac_partisans = num_partisans / n
-    means = ",".join([str(partisan_mean)] * num_partisans) + ',r'
-    sds = ",".join([str(partisan_sd)] * num_partisans) + ',r'
+    means = first_k_with_value_then_random(partisan_mean, num_partisans)
+    sds = first_k_with_value_then_random(partisan_sd, num_partisans)
 
 
     sim_params = {
