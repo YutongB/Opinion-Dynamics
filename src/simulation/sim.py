@@ -124,7 +124,7 @@ def DW_update(friendliness, prior_distr, DWeps):
 EPSILON = 0
 
 
-def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=10,
+def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=1,
                     friendliness=None, DWeps=1, coins=None, disruption = 0):
     """
     true_bias (θ_0 in the paper)
