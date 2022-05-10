@@ -47,7 +47,7 @@ def parser_handle_initial(parser):
                         help="maximum number of iterations per simulation")
 
     parser.add_argument("-t", "--tosses",  "--tosses-per-iter",
-                        default=10, type=int, help="number of tosses per iteration")
+                        default=1, type=int, help="number of tosses per iteration")
 
     parser.add_argument("-b", "--bias", "--true_bias",
                         default=0.5, type=float, help="true bias of coin")
