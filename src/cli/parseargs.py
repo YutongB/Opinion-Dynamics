@@ -65,6 +65,9 @@ def parse_args():
 
     # parser.add_argument('-s', "--seed", type=int, help="Random seed to seed the random number generators", default=None)
 
+    parser.add_argument("--nolog", action="store_true",
+                        help="should we keep all data?", default=False)
+
     parser.add_argument("--DWeps", type=float,
                         help="Threshold for ignoring the opinion for DW update rule; use 1 to use normal update rule", default=1)
     parser.add_argument("--disruption", type=int,

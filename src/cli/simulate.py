@@ -41,7 +41,7 @@ def parse_sim_params(args):
         "asymptotic_learning_max_iters": args.asym_max_iters,
         "DWeps": args.DWeps,
         "disruption": args.disruption,
-        "log": None if args.mode == 'balanced' else True
+        "log": None if args.mode == 'balanced' or args.nolog else True
     }
 
 def main():
