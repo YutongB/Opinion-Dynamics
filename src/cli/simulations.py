@@ -1,45 +1,46 @@
 
 import multiprocessing
+import timeit
+
+from src.cli.make_sim_params import first_k_with_value_then_random
+from src.analyse.analyse import frac_asymptotic_system, num_asymptotic_agents, num_asymptotic_agents_theta
 from src.simulation.graphs import make_graph_generator
 from src.simulation.runsim import run_ensemble
 
+import logging
 
-class color:
-    # https://stackoverflow.com/questions/8924173/how-to-print-bold-text-in-python
-    PURPLE = '\033[95m'
-    CYAN = '\033[96m'
-    DARKCYAN = '\033[36m'
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    END = '\033[0m'
+# use logger for thread-safe file writing (otherwise they might overwrite each other)
+logger = logging.getLogger('log')
+logger.setLevel(logging.INFO)
 
-def printb(*arg1, **argv):
-    print(color.BOLD + " ".join([str(x) for x in arg1]) + color.END, **argv)
+logpath = f"output/bigexperiment-1.log"
+ch = logging.FileHandler(logpath)
+ch.setFormatter(logging.Formatter('%(message)s'))
+logger.addHandler(ch)
 
 
-n = 100
-runs = 1000
+n, runs = 100, 1000
+# n, runs = 100, 10
 asymp_max_iters = 99
+num_partisans_sweep = range(1, n)
+# num_partisans_sweep = [40]
 
-command = f"python3 -m src.cli.simulate -n {n} -e allies -b 0.6 -r {runs} --nolog "
-partisan_mean = 0.3
+
+bias = 0.6           # theta0
+partisan_mean = 0.3  # thetap
 partisan_sd = 0.01
+command = f"python3 -m src.cli.simulate -n {n} -e allies -b {bias} -r {runs} --nolog "
+
+max_steps = 1000
 
 ret = {}
 
-def first_k_with_value_then_random(value, k):
-    # eg: value = 5, k = 3 => "5,5,5,5,5,r" (the rest are treated as random, if any.)
-    return ",".join([str(value)] * k) + ',r'
 
 def run(num_partisans):
+
     frac_partisans = num_partisans / n
     means = first_k_with_value_then_random(partisan_mean, num_partisans)
     sds = first_k_with_value_then_random(partisan_sd, num_partisans)
-
 
     sim_params = {
         "prior": {
@@ -49,37 +50,36 @@ def run(num_partisans):
             "mean_range": (0, 1),
             "sd_range": (0.2, 0.8),
         },
-        "max_steps": 1000,
-        "true_bias": 0.6,
+        "max_steps": max_steps,
+        "true_bias": bias,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,
         "asymptotic_learning_max_iters": asymp_max_iters,
         "DWeps": 1,
         "disruption": num_partisans,
-        "log": None
+        "log": None,  # need to log to get mean_list
     }
 
     res = run_ensemble(runs=runs, gen_graph=make_graph_generator(n, "allies"), sim_params=sim_params,
                         title=f"{frac_partisans:.2f} Partisans")
 
-    # this_command = command + f"--mean {means},r --sd {sds},r --disruption {num_partisans}"
-    # printb(frac_partisans, this_command)
+    # frac_asymptotic = frac_asymptotic_system(res, asymp_max_iters)
+    x = num_asymptotic_agents(res)
+    close_agents = num_asymptotic_agents_theta(res, bias, partisan_mean)
 
-    # with open(os.devnull, 'wb') as devnull:
-        # subprocess.check_call(this_command.split(), stdout=devnull, stderr=subprocess.STDOUT)
+    logger.info(f"partisans={frac_partisans:.2f} num_asymp_agents={x} close_agents={close_agents} runs={runs} n={n}")
 
-    ensemble_t_A = [sim.steps if sim.asymptotic[-1] == asymp_max_iters else -1 for sim in res]
-    num_asymptotic = len(ensemble_t_A) - ensemble_t_A.count(-1)
-
-    frac_asymptotic = num_asymptotic / len(ensemble_t_A)
-    printb(f"partisans={frac_partisans:.2f} asymp={frac_asymptotic:.3f} runs={runs}")
-
-    return (frac_partisans, frac_asymptotic)
+    return (frac_partisans, x, close_agents)
 
 def main():
+    time1 = timeit.default_timer()
+
     with multiprocessing.Pool(10) as p:
-        res = p.map(run, range(1, n))
+        res = p.map(run, [x for x in num_partisans_sweep])
         print(res)
+    
+    time2 = timeit.default_timer()
+    print(f'Time taken: {(time2 - time1):.2f} seconds')
 
 if __name__ == '__main__':
     main()

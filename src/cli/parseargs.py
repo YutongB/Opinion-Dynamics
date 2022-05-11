@@ -42,6 +42,8 @@ def parser_handle_ensemble(parser):
 
 def parser_handle_initial(parser):
     parser.add_argument("--initfile", help="filename with initial parameters")
+    
+    parser.add_argument("--get_sim_params", '-g',action="store_true", help="get sim_params using get_sim_params")
 
     parser.add_argument("-m", "--max_iter", "--max_steps", default=1000, type=int,
                         help="maximum number of iterations per simulation")

@@ -21,6 +21,8 @@ class AnalyseSimulation:
         self.args = args
         self.sim_params = sim_params
         self.idx = idx
+        self.disruption = args['disruption']
+        self.n = args['size']
         self.asymptotic = self.results.asymptotic[-1] == self.sim_params["asymptotic_learning_max_iters"]
 
     '''
@@ -233,3 +235,36 @@ def frac_simulation_asymptotic(results):
     num_asymptotic = len(ensemble_t_A) - ensemble_t_A.count(-1)
     pct_asymptotic = num_asymptotic / len(ensemble_t_A)
     return " ".join(map(str,ensemble_t_A)), pct_asymptotic, "{:.2f}% ({}/{}) asymptotic".format(pct_asymptotic*100, num_asymptotic, len(ensemble_t_A))
+
+
+def num_asymptotic_agents_theta(ensemble: List[SimResults], theta0: float, thetap: float):
+    res = []
+    for sim in ensemble:
+        asymp_agents = np.array(sim.agent_is_asymptotic)
+        num_asymp_agents = np.sum(asymp_agents)
+        theta0_close_agents = np.isclose(sim.mean_list, theta0, atol=1e-2)
+        thetap_close_agents = np.isclose(sim.mean_list, thetap, atol=1e-2)
+        not_close_agents = ~(theta0_close_agents | thetap_close_agents)
+
+        theta0_close_asymp_agents = theta0_close_agents & asymp_agents
+        thetap_close_asymp_agents = thetap_close_agents & asymp_agents
+        not_close_asymp_agents = not_close_agents & asymp_agents
+        
+        res.append((np.sum(theta0_close_asymp_agents) / num_asymp_agents,
+                   np.sum(thetap_close_asymp_agents) / num_asymp_agents,
+                   np.sum(not_close_asymp_agents) / num_asymp_agents))
+
+    return list(np.array(res).mean(axis=0))  # take the mean across the ensemble
+
+
+def num_asymptotic_agents(ensemble: List[SimResults]):
+    num_asymptotic_agents = [np.sum(sim.agent_is_asymptotic) for sim in ensemble]
+    return np.mean(num_asymptotic_agents)
+
+
+def frac_asymptotic_system(ensemble: List[SimResults], asymp_max_iters: int):
+    ensemble_t_A = [sim.steps if sim.asymptotic[-1] == asymp_max_iters else -1 for sim in ensemble]
+    num_asymptotic = len(ensemble_t_A) - ensemble_t_A.count(-1)
+    frac_asymptotic = num_asymptotic / len(ensemble_t_A)
+    return frac_asymptotic
+

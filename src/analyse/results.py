@@ -42,8 +42,9 @@ def read_graph(adjacency, friendliness):
     #    for u in range(n) for v in range(u+1, n) }
 
 
-results_params = ("steps", "asymptotic", "coins", "mean_list", "std_list", "final_distr", "initial_distr", "friendliness", "adjacency", "distrs")
-results_array_params = ("adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list", "distrs")
+results_params = ("steps", "asymptotic", "agent_is_asymptotic", "coins", "mean_list", "std_list", "final_distr", "initial_distr", "friendliness", "adjacency", "distrs")
+# parameters that should be interpreted as np.array
+results_array_params = ("agent_is_asymptotic", "adjacency", "friendliness", "final_distr", "initial_distr", "mean_list", "std_list", "distrs")
 
 SimResults = namedtuple("SimulationResults", results_params)
 

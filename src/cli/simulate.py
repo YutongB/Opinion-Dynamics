@@ -1,5 +1,6 @@
 import json
 import timeit
+from src.cli.make_sim_params import get_sim_params
 from src.cli.parseargs import parse_args
 from src.analyse.results import dump_json
 from src.simulation.balance import run_balanced
@@ -51,53 +52,40 @@ def main():
 
     print("Args parsed:", args)
 
-    gen_graph = make_graph_generator(n=args.size, edges=args.edges)
-    sim_params = parse_sim_params(args)
+    n = args.size
+    if args.get_sim_params:
+        sim_params = get_sim_params()
+        n = sim_params['prior']['n']
+    else:
+        sim_params = parse_sim_params(args)
 
-    print("Sim params:", sim_params)
+    gen_graph = make_graph_generator(n=n, edges=args.edges)
 
-    runs = args.runs if not args.single else 1
 
     if args.initfile is not None:
         print("Using initial parameters f{args.initfile}.")
         with open(args.initfile, 'r') as f:
             initdata = json.load(f)
-            coinslist = initdata["coinlist"]
-            initargs = initdata["args"]
-            priors = initdata["priors"]
-
-            runs = initargs['runs']
             sim_params = {
                 **sim_params,
-                "max_steps": initargs["max_iter"],
-                "true_bias": initargs["bias"],
-                "tosses_per_iteration": initargs["tosses"],
-                "coinslists": coinslist,
-                "priors": priors
+                **initdata,
             }
+
+    print("Sim params:", sim_params)
+
+    runs = args.runs if not args.single else 1
 
     res = None
 
     if args.mode == "complete":
         print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\n".format(
             f"ensemble of {runs} simulations" if not args.single else "simulation", 
-            args.size, args.edges))
+            n, args.edges))
 
-        if runs == 1:
-            if args.initfile is not None:
-                sim_params["coinslist"] = sim_params["coinslists"][0]
-                del sim_params["coinslists"]
-                sim_params["prior_mean"], sim_params["prior_sd"] = sim_params["priors"][0]
-                del sim_params["priors"]
-
-            res = [run_simulation(gen_graph(), **sim_params)]
-        elif runs < 1:
-            raise Exception("invalid number of runs")
-        else:
-            res = run_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
+        res = run_ensemble(runs=runs, gen_graph=gen_graph, sim_params=sim_params)
     elif args.mode == 'balanced':
-        # res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size, m=args.edges)
-        res = run_balanced(sim_params=sim_params, threshold=runs, n=args.size)
+        # res = run_balanced(sim_params=sim_params, threshold=runs, n=n, m=args.edges)
+        res = run_balanced(sim_params=sim_params, threshold=runs, n=n)
 
 
     fname = "output/res-{}.json".format(timestamp())

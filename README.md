@@ -2,6 +2,20 @@
 Master project 2021 
 Base on code by Nicholas Low
 
+## Example simulations
+```
+# simulation of 10 nodes who are all allies, with the first node mean 0.3 and sd 0.001 and the rest randomly generated. 
+# One disruption node. 
+# Coin bias is 0.6
+python3 -m src.cli.simulate -n 10 -e allies --mean 0.3,r --sd .001,r --disruption 1 -b 0.6
+```
+
+the big boi simulations
+```
+python3 -m src.cli.simulations
+```
+
+
 ## Installation
 Ensure you have anaconda correctly installed.
 1. Create the environment from the `environment.yml` file.

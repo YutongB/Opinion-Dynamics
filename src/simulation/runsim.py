@@ -3,6 +3,7 @@
 
 import signal
 from threading import Event
+from typing import List
 import numpy as np
 
 from rich.progress import (
@@ -47,18 +48,19 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    tosses_per_iteration=1, task_id=None, progress=None,
                    log=None, DWeps=1, coinslist=None,
                    disruption = 0,
-                   hide_progress_after_complete = True):
+                   hide_progress_after_complete = True) -> SimResults:
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
     initial_distr = init_simulation(g, prior=prior)
-
+    n = prior['n']
     distrs = []
     coins_list = []
     mean_list = []
     std_list = []
     asymptotic = []
     iters_asymptotic_learning = 0
+    iters_asymptotic_learning_agents = [0] * n
     prior_distr = initial_distr.copy()
     distrs.append(prior_distr)
 
@@ -93,9 +95,9 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
             disruption=disruption)
 
         steps += 1
+        mean = mean_distr(posterior)
+        mean_list.append(mean)
         if log is not None:
-            mean = mean_distr(posterior)
-            mean_list.append(mean)
             std_list.append(std_distr(posterior, mean))
             coins_list.append(coins)
             distrs.append(posterior)
@@ -103,8 +105,16 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
         # system reaches asymptotic learning when all agents reach asymptotic learning   
         largest_change = np.max(np.abs(posterior - prior_distr), axis=1)
         largest_peak = 0.01 * np.max(prior_distr, axis=1)
-        is_asymptotic = np.all(largest_change < largest_peak)
-        if is_asymptotic:
+        agent_is_asymptotic = largest_change < largest_peak  # one element for each agent
+        for i in range(len(agent_is_asymptotic)):  # loop over each agent
+            if agent_is_asymptotic[i]:
+                iters_asymptotic_learning_agents[i] += 1
+            else:
+                iters_asymptotic_learning_agents[i] = 0
+        
+        # for the whole system...
+        all_is_asymptotic = np.all(agent_is_asymptotic)
+        if all_is_asymptotic:
             iters_asymptotic_learning += 1
         else:
             iters_asymptotic_learning = 0
@@ -128,11 +138,14 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
     if progress:
         progress.update(task_id, visible=not hide_progress_after_complete)
 
+    agent_is_asymptotic = np.array(iters_asymptotic_learning_agents) >= asymptotic_learning_max_iters
+
     if log is None:
         return SimResults(steps=steps,
                           asymptotic=asymptotic,
+                          agent_is_asymptotic=agent_is_asymptotic,
                           coins=None,
-                          mean_list=None,
+                          mean_list=mean_list[-1],
                           std_list=None,
                           final_distr=None,
                           initial_distr=None,
@@ -142,6 +155,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
     else:
         return SimResults(steps=steps,
                         asymptotic=asymptotic,
+                        agent_is_asymptotic=agent_is_asymptotic,
                         coins=coins_list,
                         mean_list=mean_list,
                         std_list=std_list,
@@ -152,11 +166,14 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                         distrs=distrs)
 
 
-def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simulation_progress=True):
+def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simulation_progress=True) -> List[SimResults]:
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
     """
+    if runs < 1:
+        raise Exception("invalid number of runs")
+
     if sim_params is None:
         sim_params = {}
 
@@ -169,7 +186,6 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simula
         coinslists = None
         priors = None
 
-    coinslist = None
 
     with make_progress() as progress:
         results = []
@@ -180,10 +196,10 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simula
                 task_id = progress.add_task("Sim #{}".format(r+1))
 
             if coinslists is not None:
-                coinslist = coinslists[r]
+                sim_params["coinslist"] = coinslists[r]
                 sim_params["prior"] = priors[r]
 
-            sim = run_simulation(gen_graph(), coinslist=coinslist, **sim_params,
+            sim = run_simulation(gen_graph(), **sim_params,
                                  progress=progress if simulation_progress else False,
                                  task_id=task_id if simulation_progress else None)
             results.append(sim)
