@@ -16,8 +16,8 @@ def flist_to_str(lst: List[float]):
     return ','.join([str(x) for x in lst])
 
 def get_sim_params():
-    num_partisans = 5
-    n = 10
+    num_partisans = 1
+    n = 2
     coinslist = None
     # coinslist = make_coin_list(bias=0.6, max_steps=1000)
 
@@ -35,7 +35,7 @@ def get_sim_params():
             "mean_range": (0, 1),
             "sd_range": (0.2, 0.8),
         },
-        "max_steps": 1000,
+        "max_steps": 10000,
         "true_bias": 0.6,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,

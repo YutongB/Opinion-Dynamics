@@ -47,6 +47,18 @@ class AnalyseSimulation:
         plt.plot(np.cumsum(sim.coins))
         plt.xlabel("Step")
         plt.ylabel("Number of heads")
+
+    def plot_coins_prob(self, label = None):
+        sim = self.results
+        sum = np.cumsum(sim.coins)
+        prob =[]
+        for index, value in enumerate(sum):
+            prob.append(value/(index+1))
+        prob.pop(0)
+        # print(sum)
+        plt.plot(prob, label = label)
+        plt.xlabel("Step")
+        plt.ylabel("Probability of heads")
     """
     Ploting the number of steps the system is in asymptotic learning consecutively
     Code will terminate after reaching 100 steps
@@ -56,6 +68,21 @@ class AnalyseSimulation:
         plt.plot(sim.asymptotic)
         plt.xlabel("Step")
         plt.ylabel("Number of consecutive asymptotic learning steps")
+
+    def plot_asymptotic_learning_steps_hist(self,include_zero = True,bins = 50):
+        sim = self.results
+        if include_zero:
+            plt.hist(sim.asymptotic, bins = bins)
+        else: 
+            new_step = []
+            for step in sim.asymptotic:
+                if step != 0:
+                    new_step.append(step)
+            plt.hist(new_step, bins = bins)
+        plt.xlabel("Number of consecutive asymptotic learning steps")
+        plt.ylabel("Frequency")
+
+
 
     """
     Ploting confidence in beliefs in all different ways 
@@ -242,8 +269,8 @@ def num_asymptotic_agents_theta(ensemble: List[SimResults], theta0: float, theta
     for sim in ensemble:
         asymp_agents = np.array(sim.agent_is_asymptotic)
         num_asymp_agents = np.sum(asymp_agents)
-        theta0_close_agents = np.isclose(sim.mean_list, theta0, atol=1e-2)
-        thetap_close_agents = np.isclose(sim.mean_list, thetap, atol=1e-2)
+        theta0_close_agents = np.isclose(sim.mean_list[-1], theta0, atol=1e-2)
+        thetap_close_agents = np.isclose(sim.mean_list[-1], thetap, atol=1e-2)
         not_close_agents = ~(theta0_close_agents | thetap_close_agents)
 
         theta0_close_asymp_agents = theta0_close_agents & asymp_agents
