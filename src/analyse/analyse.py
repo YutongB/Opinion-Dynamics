@@ -5,6 +5,7 @@ import pandas as pd
 import graph_tool as gt 
 import plotly.express as px
 import gif
+from tqdm import tqdm
 
 from src.analyse.results import SimResults, read_graph, read_results
 from src.simulation.sim import BIAS_SAMPLES
@@ -61,7 +62,7 @@ class AnalyseSimulation:
         plt.ylabel("Probability of heads")
     """
     Ploting the number of steps the system is in asymptotic learning consecutively
-    Code will terminate after reaching 100 steps
+    Code will terminate after reaching 100 steps if "break_on_asymptotic_learning": True,
     """
     def plot_asymptotic_learning_steps(self):
         sim = self.results
@@ -81,6 +82,7 @@ class AnalyseSimulation:
             plt.hist(new_step, bins = bins)
         plt.xlabel("Number of consecutive asymptotic learning steps")
         plt.ylabel("Frequency")
+
 
 
 
@@ -160,12 +162,12 @@ class AnalyseSimulation:
     def plot_distr(self, step, title=None):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T)
+        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
             title = f"Distribution step {step}"
 
-        plt.title(f"{title}, sim {self.idx}")
+        # plt.title(f"{title}, sim {self.idx}")
         plt.xlabel("$\\theta$")
         plt.ylabel("Probability")
         n = len(self.results.initial_distr)
@@ -175,11 +177,15 @@ class AnalyseSimulation:
     Plotly slider plot
     """
 
-    def plotly_distr(self, opacity=1):
+    def plotly_distr(self, steps=None, opacity=1):
         theta = np.linspace(0, 1, BIAS_SAMPLES)
+        if steps is None:
+            steps = range(self.results.distrs.shape[0])
+        steps = list(steps)
 
-        df = pd.DataFrame([(v, theta[i], node, step) 
-                            for step, ds in enumerate(self.results.distrs) 
+
+        df = pd.DataFrame([(v, theta[i], node, steps[step]) 
+                            for step, ds in enumerate(self.results.distrs[steps])
                             for node, row in enumerate(ds) 
                             for i, v in enumerate(row)], 
                     columns=["y", 'theta', 'node', 'step'])

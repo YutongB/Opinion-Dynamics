@@ -80,7 +80,8 @@ def adjacency_mat(g):
 
 def avg_dist_in_belief(friendliness, posterior_distr):
     n = friendliness.shape[0]
-
+    if n==1:
+        return 0
     xi = np.broadcast_to(
         posterior_distr, (n, n, BIAS_SAMPLES)).transpose((1, 0, 2))
     xj = np.broadcast_to(posterior_distr, (n, n, BIAS_SAMPLES))
@@ -149,13 +150,17 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
         num_heads=coins, num_coins=num_coins)  # (eqn 2)
     posterior_distr = normalize_distr(likelihood * prior_distr)  # (eqn 1)
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
+    # Need to change partisan's belief after cointoss before blending
+    posterior_distr[:disruption] = prior_distr[:disruption]
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
     avg_dist_belief = avg_dist_in_belief(
         friendliness, posterior_distr)   # (eqn 4)
 
-    # TODO: learning_rate vector, length # nodes; set a learning rate for each person
+
     bayes_update_max_RHS = posterior_distr + avg_dist_belief * learning_rate
+    # bayes_update_max_RHS = posterior_distr
+
     bayes_update_max_LHS = np.broadcast_to(EPSILON, (n, 21))
     bayes_update = np.amax(
         np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)

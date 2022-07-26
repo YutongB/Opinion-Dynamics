@@ -15,7 +15,7 @@ def parse_prior_str(s: str | None, n: int):
     if s == None: # make a completely random prior
         return ['r'] * n
 
-    s = [x if x == 'r' else float(x) for x in s.split(",")]
+    s = [x if x == 'r' else float(x) for x in s.split(",") if x != '']
     # the rest have the same mean as the last one.
     rest = [s[-1]] * (n-len(s))
     s += rest

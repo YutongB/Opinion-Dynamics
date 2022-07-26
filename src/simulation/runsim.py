@@ -48,6 +48,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    tosses_per_iteration=1, task_id=None, progress=None,
                    log=None, DWeps=1, coinslist=None,
                    disruption = 0,
+                   break_on_asymptotic_learning = True,
                    hide_progress_after_complete = True) -> SimResults:
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
@@ -126,7 +127,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
         if iters_asymptotic_learning == asymptotic_learning_max_iters:
             if progress:
                 progress.update(task_id, total=i+1, completed=i+1)
-            break
+            if break_on_asymptotic_learning:
+                break
 
         prior_distr = posterior.copy()
 
