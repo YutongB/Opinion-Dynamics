@@ -82,7 +82,22 @@ class AnalyseSimulation:
             plt.hist(new_step, bins = bins)
         plt.xlabel("Number of consecutive asymptotic learning steps")
         plt.ylabel("Frequency")
+    
+    def belief_at_asymptotic(self):
+        sim = self.results
+        steps = np.array(sim.asymptotic)
+        ASYM_MAX_ITERS = self.sim_params["asymptotic_learning_max_iters"]
+        learnt = np.nonzero(steps > ASYM_MAX_ITERS)[0]
+        indexes = [learnt[0]]
+        for i in range(len(learnt)-1): 
+            if learnt[i+1] - learnt[i] != 1:
+                indexes.append(learnt[i+1])
+                i += 1 
+        belief_at_asy = []
+        for index in indexes:
+            belief_at_asy.append(sim.mean_list[index][-1])
 
+        return belief_at_asy
 
 
 
@@ -162,7 +177,8 @@ class AnalyseSimulation:
     def plot_distr(self, step, title=None):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
+        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, alpha=0.5)
+        # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
             title = f"Distribution step {step}"

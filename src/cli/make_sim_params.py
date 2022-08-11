@@ -16,8 +16,8 @@ def flist_to_str(lst: List[float]):
     return ','.join([str(x) for x in lst])
 
 def get_sim_params():
-    num_partisans = 5
-    n = 10
+    num_partisans = 1
+    n = 3
     coinslist = None
     # coinslist = make_coin_list(bias=0.6, max_steps=1000)
     # coinslist = [1] * 6000 + [0] * 4000
@@ -47,7 +47,7 @@ def get_sim_params():
         "disruption": num_partisans,
         "log": True,  # need to log to get mean_list
         "coinslist": coinslist,
-        "break_on_asymptotic_learning": True,
+        "break_on_asymptotic_learning": False,
     }
 
     return sim_params
