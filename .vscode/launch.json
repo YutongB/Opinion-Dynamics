@@ -5,20 +5,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Simulate DW test",
+            "name": "Python: Simulate",
             "type": "python",
             "request": "launch",
-            "program": "simulate.py",
+            "module": "src.cli.simulate",
             "console": "integratedTerminal",
-            "args": ["-n", "10", "-e", "friends", "--DWeps", "0.1"]
-        },
-        {
-            "name": "Python: Simulate DW test with initfile",
-            "type": "python",
-            "request": "launch",
-            "program": "simulate.py",
-            "console": "integratedTerminal",
-            "args": ["--initfile", "output/initial-2021_10_13-21_03_56.json", "-e", "friends", "--DWeps", "0.99"]
+            "args": ["-e", "allies", "-r", "1", "-g"]
         }
     ]
 }

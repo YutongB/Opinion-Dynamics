@@ -82,24 +82,79 @@ class AnalyseSimulation:
             plt.hist(new_step, bins = bins)
         plt.xlabel("Number of consecutive asymptotic learning steps")
         plt.ylabel("Frequency")
+
     
-    def belief_at_asymptotic(self):
+    # def stable_dwell_time(self, iter = None):
+    #     sim = self.results
+    #     if iter is None:
+    #         iter = self.sim_params["asymptotic_learning_max_iters"]
+    #     steps = np.array(sim.asymptotic)
+    #     indices = np.nonzero(steps == iter)[0]
+    #     return indices, steps
+
+    def dwell_time(self, stable_iters = None, stable = True):
+        sim = self.results
+        if stable_iters is None:
+            stable_iters = self.sim_params["asymptotic_learning_max_iters"]
+        steps = np.array(sim.asymptotic)
+        indices_at_stable = np.nonzero(steps >= stable_iters)[0]
+        start_time_list = [indices_at_stable[0]]
+        end_time_list = []
+        for i in range(len(indices_at_stable)-1):
+            if indices_at_stable[i+1] - indices_at_stable[i] != 1:
+                end_time_list.append(indices_at_stable[i])
+                start_time_list.append(indices_at_stable[i+1])
+
+        if stable:
+            time_in_stable = [end_time_list[i]- start_time_list[i] for i in range(len(end_time_list))]
+            return time_in_stable, start_time_list
+            # return [(start_time_list[i], time_in_stable[i]) for i in range(len(time_in_stable))]
+        else:
+            time_in_turbulence = [ start_time_list[i+1] - end_time_list[i] for i in range(len(start_time_list)-1)]
+            return time_in_turbulence, end_time_list
+            # return [(end_time_list[i], time_in_turbulence[i]) for i in range(len(time_in_turbulence))]
+            
+    def plot_dwell_time(self, stable_iters = None, stable = True, BINS = 'auto'):
+        dwell_time, _ = self.dwell_time(iter,stable)
+        plt.hist(dwell_time, bins = BINS)
+        plt.xlabel("Step")
+        plt.ylabel("Dwell time")
+        if stable:
+            plt.title("Dwell time in stable state")
+        else:
+            plt.title("Dwell time in turbulence")   
+
+
+
+    '''
+    If "break_on_asymptotic_learning": False, 
+    check the belief of non-partisans when the asymptotic learning step is reached
+    If "break_on_asymptotic_learning": True,
+    It will return final belief of non-partisans
+    '''
+    def belief_at_asymptotic(self, stable_iters = None):
         sim = self.results
         steps = np.array(sim.asymptotic)
-        ASYM_MAX_ITERS = self.sim_params["asymptotic_learning_max_iters"]
-        learnt = np.nonzero(steps > ASYM_MAX_ITERS)[0]
-        indexes = [learnt[0]]
-        for i in range(len(learnt)-1): 
-            if learnt[i+1] - learnt[i] != 1:
-                indexes.append(learnt[i+1])
-                i += 1 
-        belief_at_asy = []
-        for index in indexes:
-            belief_at_asy.append(sim.mean_list[index][-1])
+        if stable_iters is None:
+            ASYM_MAX_ITERS = self.sim_params["asymptotic_learning_max_iters"]
+        else: 
+            ASYM_MAX_ITERS = stable_iters
+        indices = np.nonzero(steps == ASYM_MAX_ITERS)[0]
+        belief_at_asy = [sim.mean_list[i][-1] for i in indices]
 
         return belief_at_asy
-
-
+    
+    '''
+    Check the belief at asymptotic learning, 
+    retune the fraction of asymptotic learning steps with belief 
+    that are close to the true bias/or given belief
+    '''
+    def check_belief_at_asymptotic(self, iter = None, belief = None):
+        belief_arr = np.array(self.belief_at_asymptotic(iter))
+        if belief is None:
+            belief = self.sim_params["true_bias"]
+        coin_arr = np.full((1,len(belief_arr)),belief)
+        return np.sum(np.isclose(belief_arr, coin_arr,atol=0.05))/len(belief_arr)
 
     """
     Ploting confidence in beliefs in all different ways 
@@ -153,15 +208,25 @@ class AnalyseSimulation:
     '''
     Ploting system statistics 
     '''
-    def plot_mean(self):
+    def plot_all_mean(self):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(sim.mean_list, alpha=0.5)
+        # plt.plot(sim.mean_list, alpha=0.5)
+
         plt.title(f"Mean/Iter, sim {self.idx}")
         plt.xlabel("Iteration")
         plt.ylabel("Mean")
         n = len(self.results.initial_distr)
-        plt.legend(range(n))
+        # plt.legend(range(n))
+
+    def plot_non_partisan_mean(self):
+        sim = self.results
+        # alpha is transparency of graph lines
+        plt.plot(sim.mean_list[:,-1], linewidth=0.3)
+        plt.xlabel("Timesteps")
+        plt.title("Mean belief of one non-partisan agent")
+        plt.ylabel("Mean")
+
 
     def plot_std(self):
         sim = self.results
@@ -177,7 +242,7 @@ class AnalyseSimulation:
     def plot_distr(self, step, title=None):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, alpha=0.5)
+        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=0.6)
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
@@ -187,7 +252,7 @@ class AnalyseSimulation:
         plt.xlabel("$\\theta$")
         plt.ylabel("Probability")
         n = len(self.results.initial_distr)
-        plt.legend(range(n))
+        # plt.legend(range(n))
 
     """
     Plotly slider plot
