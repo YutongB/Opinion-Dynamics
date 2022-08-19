@@ -1,3 +1,4 @@
+from cProfile import label
 from typing import List
 from matplotlib import pyplot as plt
 import numpy as np
@@ -66,24 +67,37 @@ class AnalyseSimulation:
     """
     def plot_asymptotic_learning_steps(self):
         sim = self.results
-        plt.plot(sim.asymptotic)
+        plt.plot(sim.asymptotic, label = "Asymptotic learning steps")
         plt.xlabel("Step")
         plt.ylabel("Number of consecutive asymptotic learning steps")
 
-    def plot_asymptotic_learning_steps_hist(self,include_zero = True,bins = 50):
+    def plot_asymptotic_learning_steps_hist(self,include_zero = True,bins = 50,log = False):
         sim = self.results
         if include_zero:
-            plt.hist(sim.asymptotic, bins = bins)
+            plt.hist(sim.asymptotic, bins = bins, log=log)
         else: 
             new_step = []
             for step in sim.asymptotic:
                 if step != 0:
                     new_step.append(step)
-            plt.hist(new_step, bins = bins)
+            plt.hist(new_step, bins = bins,log=log)
         plt.xlabel("Number of consecutive asymptotic learning steps")
         plt.ylabel("Frequency")
 
+    def dwell_time(self): 
+        sim = self.results
+        dwelltime = []
+        for step in sim.asymptotic:
+            if step != 0:
+                dwelltime.append(step)
+        return dwelltime
     
+
+    def plot_dwell_time(self, bins = 'auto', log = False):
+        plt.hist(self.dwell_time(), label = "Dwell time", bins = bins, log = log)
+        plt.xlabel("Step")
+        plt.ylabel("Dwell time")
+
     # def stable_dwell_time(self, iter = None):
     #     sim = self.results
     #     if iter is None:
@@ -92,7 +106,7 @@ class AnalyseSimulation:
     #     indices = np.nonzero(steps == iter)[0]
     #     return indices, steps
 
-    def dwell_time(self, stable_iters = None, stable = True):
+    def nic_dwell_time(self, stable_iters = None, stable = True):
         sim = self.results
         if stable_iters is None:
             stable_iters = self.sim_params["asymptotic_learning_max_iters"]
@@ -114,8 +128,11 @@ class AnalyseSimulation:
             return time_in_turbulence, end_time_list
             # return [(end_time_list[i], time_in_turbulence[i]) for i in range(len(time_in_turbulence))]
             
-    def plot_dwell_time(self, stable_iters = None, stable = True, BINS = 'auto'):
-        dwell_time, _ = self.dwell_time(iter,stable)
+
+    def plot_nic_dwell_time(self, stable_iters = None, stable = True, BINS = 'auto', log = False):
+        dwell_time, _ = self.dwell_time(stable_iters,stable)
+        if log:
+            plt.hist(dwell_time, bins = BINS, log = True)
         plt.hist(dwell_time, bins = BINS)
         plt.xlabel("Step")
         plt.ylabel("Dwell time")
