@@ -17,9 +17,9 @@ def flist_to_str(lst: List[float]):
 
 def get_sim_params():
     num_partisans = 1
-    n = 3
+    n = 100
     coinslist = None
-    # coinslist = make_coin_list(bias=0.6, max_steps=1000)
+    # coinslist = make_coin_list(bias=0.6, max_steps=10000)
     # coinslist = [1] * 6000 + [0] * 4000
 
     prior_mean = first_k_with_value_then_random(0.3, num_partisans)
@@ -38,7 +38,7 @@ def get_sim_params():
             "mean_range": (0,1),
             "sd_range": (0.2, 0.8),
         },
-        "max_steps": 10000,
+        "max_steps": 10**7,
         "true_bias": 0.6,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,

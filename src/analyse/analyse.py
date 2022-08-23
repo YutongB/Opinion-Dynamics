@@ -239,7 +239,7 @@ class AnalyseSimulation:
     def plot_non_partisan_mean(self):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(sim.mean_list[:,-1], linewidth=0.3)
+        plt.plot(sim.mean_list[:,-1], linewidth=0.5, alpha=0.5)
         plt.xlabel("Timesteps")
         plt.title("Mean belief of one non-partisan agent")
         plt.ylabel("Mean")
@@ -256,10 +256,13 @@ class AnalyseSimulation:
         plt.legend(range(n))
 
 
-    def plot_distr(self, step, title=None):
+    def plot_distr(self, step, title=None, simid=None):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=0.6)
+        if simid is None:
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=1)
+        else:
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1)
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
@@ -338,6 +341,59 @@ class AnalyseSimulation:
 
 
 
+'''
+Fitting and plotting 
+'''
+'''
+Powerlaw fit
+'''
+    
+def get_xy_from_hist(data, exclude = 0):   
+    counts = np.unique(data, return_counts=True)
+    x = counts[0]
+    y = counts[1]
+    exclude = int(len(x) * (1 - exclude / 100))
+    x = counts[0][:exclude]
+    y = counts[1][:exclude]
+    return x, y
+
+
+
+def fit_with_exclude(data, log=True, exclude=40):
+    """find line best fit with given exclude parameters"""
+    x, y = get_xy_from_hist(data, exclude=exclude)
+    exclude = int(len(x) * (1 - exclude / 100))
+    scaledx, scaledy = x, y
+    if log:
+        scaledx = np.log10(x)
+        scaledy = np.log10(y)
+    c, m = np.polyfit(scaledx[:exclude], scaledy[:exclude], 1)
+    fittedy = m * x + c
+    equation = "y = {:.4f} x + {:.4f}".format(m, c)
+    if log:
+        fittedy = 10 ** fittedy
+        equation = "log y = {:.4f} log x + {:.4f}".format(m, c)
+    return fittedy, equation
+
+def plot_scatter(data, xlabel= None, ylabel = None, title =  None, fit=True, log=True, exclude=40):
+    """scatter plot with line best fit"""
+    x, y = get_xy_from_hist(data)
+    fig, ax = plt.subplots()
+    if log:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+    ax.scatter(x, y)
+    if fit:
+        fittedy, equation = fit_with_exclude(data, exclude= exclude)
+        exclude = int(len(x) * (1 - exclude / 100))
+        ax.plot(x[:exclude], fittedy[:exclude], '-')
+        print(title, equation)
+        ax.text(0.1, 0.1, equation, transform=ax.transAxes)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.show()
+
 
 
 '''
@@ -399,3 +455,9 @@ def frac_asymptotic_system(ensemble: List[SimResults], asymp_max_iters: int):
     frac_asymptotic = num_asymptotic / len(ensemble_t_A)
     return frac_asymptotic
 
+
+
+
+
+# def powerlaw_fit(x, y, xmin=None, xmax=None, **kwargs):
+#     popt, pcov = curve_fit(powerlaw_func, x[:20], y[:20], p0=[5000, 0.5, 0], bounds=([1,.05, -2000], [10000, 5, 2000]))
