@@ -16,18 +16,17 @@ def flist_to_str(lst: List[float]):
     return ','.join([str(x) for x in lst])
 
 def get_sim_params():
-    num_partisans = 1
-    n = 100
-    coinslist = None
-    # coinslist = make_coin_list(bias=0.6, max_steps=10000)
+    num_partisans = 0
+    n = 99
+    # coinslist = None
+    coinslist = make_coin_list(bias=0.6, max_steps=10000)
     # coinslist = [1] * 6000 + [0] * 4000
-
     prior_mean = first_k_with_value_then_random(0.3, num_partisans)
-    # prior_mean = flist_to_str(gen_prior_param(prior_mean, n, range=(0,1)))
+    prior_mean = flist_to_str(gen_prior_param(prior_mean, n, range=(0,1)))
     # prior_mean = '0.3'
 
     prior_sd = first_k_with_value_then_random(0.01, num_partisans)
-    # prior_sd = flist_to_str(gen_prior_param(prior_sd, n, range=(0.2, 0.8)))
+    prior_sd = flist_to_str(gen_prior_param(prior_sd, n, range=(0.2, 0.8)))
     # prior_sd = '0.5'
 
     sim_params = {
@@ -38,7 +37,7 @@ def get_sim_params():
             "mean_range": (0,1),
             "sd_range": (0.2, 0.8),
         },
-        "max_steps": 10**7,
+        "max_steps": 10000,
         "true_bias": 0.6,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,

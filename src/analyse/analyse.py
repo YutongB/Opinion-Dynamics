@@ -86,17 +86,23 @@ class AnalyseSimulation:
 
     def dwell_time(self): 
         sim = self.results
-        dwelltime = []
-        for step in sim.asymptotic:
-            if step != 0:
-                dwelltime.append(step)
-        return dwelltime
+        # dwelltime = []
+        steps = np.array(sim.asymptotic)
+        indices_at_dwell = np.nonzero(steps >= 1)[0]
+        start_time_list = [indices_at_dwell[0]]
+        end_time_list = []
+        for i in range(len(indices_at_dwell)-1):
+            if indices_at_dwell[i+1] - indices_at_dwell[i] != 1:
+                end_time_list.append(indices_at_dwell[i])
+                start_time_list.append(indices_at_dwell[i+1])
+        dwelltime = [end_time_list[i]- start_time_list[i] for i in range(len(end_time_list))]
+        return start_time_list,end_time_list,dwelltime
     
 
     def plot_dwell_time(self, bins = 'auto', log = False):
         plt.hist(self.dwell_time(), label = "Dwell time", bins = bins, log = log)
-        plt.xlabel("Step")
-        plt.ylabel("Dwell time")
+        plt.xlabel("Dwell time")
+        plt.ylabel("Frequency")
 
     # def stable_dwell_time(self, iter = None):
     #     sim = self.results
@@ -228,21 +234,28 @@ class AnalyseSimulation:
     def plot_all_mean(self):
         sim = self.results
         # alpha is transparency of graph lines
-        # plt.plot(sim.mean_list, alpha=0.5)
+        plt.plot(sim.mean_list[:, 0], color="black", linestyle='dashed', linewidth=4)
+        
+        plt.plot(sim.mean_list[:, 1:], alpha=0.5)
+        plt.grid(linestyle='dotted')
 
-        plt.title(f"Mean/Iter, sim {self.idx}")
+        # plt.title(f"Mean/Iter, sim {self.idx}")
         plt.xlabel("Iteration")
-        plt.ylabel("Mean")
+        plt.ylabel("$ \\langle \\theta\\rangle $")
         n = len(self.results.initial_distr)
         # plt.legend(range(n))
 
-    def plot_non_partisan_mean(self):
+    def plot_non_partisan_mean(self,  LINEWIDTH= 0.5, ALPHA = 0.5, LABLE = None):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(sim.mean_list[:,-1], linewidth=0.5, alpha=0.5)
+        if LABLE == None: 
+            plt.plot(sim.mean_list[:,-1], linewidth=LINEWIDTH, alpha=ALPHA)
+        else: 
+            plt.plot(sim.mean_list[:,-1], linewidth=LINEWIDTH, alpha=ALPHA, lable = LABLE)
+            
         plt.xlabel("Timesteps")
-        plt.title("Mean belief of one non-partisan agent")
-        plt.ylabel("Mean")
+        # plt.title("Mean belief of one non-partisan agent")
+        plt.ylabel("$\\langle \\theta \\rangle$")
 
 
     def plot_std(self):
@@ -365,14 +378,14 @@ def fit_with_exclude(data, log=True, exclude=40):
     exclude = int(len(x) * (1 - exclude / 100))
     scaledx, scaledy = x, y
     if log:
-        scaledx = np.log10(x)
+        scaledx = x
         scaledy = np.log10(y)
     c, m = np.polyfit(scaledx[:exclude], scaledy[:exclude], 1)
     fittedy = m * x + c
     equation = "y = {:.4f} x + {:.4f}".format(m, c)
     if log:
         fittedy = 10 ** fittedy
-        equation = "log y = {:.4f} log x + {:.4f}".format(m, c)
+        equation = "log y = {:.4f} x + {:.4f}".format(m, c)
     return fittedy, equation
 
 def plot_scatter(data, xlabel= None, ylabel = None, title =  None, fit=True, log=True, exclude=40):
@@ -380,9 +393,10 @@ def plot_scatter(data, xlabel= None, ylabel = None, title =  None, fit=True, log
     x, y = get_xy_from_hist(data)
     fig, ax = plt.subplots()
     if log:
-        ax.set_xscale('log')
+        # ax.set_xscale('log')
         ax.set_yscale('log')
-    ax.scatter(x, y)
+    # ax.hist(data)
+    # ax.scatter(x, y)
     if fit:
         fittedy, equation = fit_with_exclude(data, exclude= exclude)
         exclude = int(len(x) * (1 - exclude / 100))

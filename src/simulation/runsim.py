@@ -168,7 +168,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                         distrs=distrs)
 
 
-def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simulation_progress=True) -> List[SimResults]:
+def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simulation_progress=True) -> list[SimResults]:
     """
     sim_params: dictionary of parameters to pass to run_simulation
     eg: sim_params = { "max_steps": 100 }
