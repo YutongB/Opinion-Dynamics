@@ -3,7 +3,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,vscode,macos
 plots
 output
-
+old_output
 ### macOS ###
 # General
 .DS_Store

@@ -88,29 +88,23 @@ class AnalyseSimulation:
         sim = self.results
         # dwelltime = []
         steps = np.array(sim.asymptotic)
-        indices_at_dwell = np.nonzero(steps >= 1)[0]
-        start_time_list = [indices_at_dwell[0]]
-        end_time_list = []
-        for i in range(len(indices_at_dwell)-1):
-            if indices_at_dwell[i+1] - indices_at_dwell[i] != 1:
-                end_time_list.append(indices_at_dwell[i])
-                start_time_list.append(indices_at_dwell[i+1])
-        dwelltime = [end_time_list[i]- start_time_list[i] for i in range(len(end_time_list))]
-        return start_time_list,end_time_list,dwelltime
-    
+        dwell_index = np.where(np.diff(steps) < 0)[0]
 
+        for i in dwell_index: # make sure that code above worked correctly
+            assert (steps[i] > 0 and steps[i+1] == 0)
+
+        dwell_time = [steps[i] for i in dwell_index]
+        return dwell_time, dwell_index
+    
     def plot_dwell_time(self, bins = 'auto', log = False):
         plt.hist(self.dwell_time(), label = "Dwell time", bins = bins, log = log)
         plt.xlabel("Dwell time")
         plt.ylabel("Frequency")
 
-    # def stable_dwell_time(self, iter = None):
-    #     sim = self.results
-    #     if iter is None:
-    #         iter = self.sim_params["asymptotic_learning_max_iters"]
-    #     steps = np.array(sim.asymptotic)
-    #     indices = np.nonzero(steps == iter)[0]
-    #     return indices, steps
+    def dt_at_true(self):
+        sim = self.results
+        true_theta = self.sim_params["true_theta"]
+        
 
     def nic_dwell_time(self, stable_iters = None, stable = True):
         sim = self.results

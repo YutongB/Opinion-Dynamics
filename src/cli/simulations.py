@@ -23,7 +23,7 @@ ch.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(ch)
 
 
-n, runs = 100, 1
+n, runs = 100, 10
 # n, runs = 100, 10
 asymp_max_iters = 99
 num_partisans_sweep = range(0, n)
@@ -83,8 +83,11 @@ def run(num_partisans):
     res = run_ensemble(runs=runs, gen_graph=make_graph_generator(n, "allies"), sim_params=sim_params,
                         title=f"{frac_partisans:.2f} Partisans")
     
+    # use mean[num_partisans:] for all non-partisans
     non_partisans_mean = [mean[num_partisans:].tolist() for mean in res[0].mean_list]
     asymptotic = res[0].asymptotic
+
+
     out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, non_partisans_mean=non_partisans_mean)
 
     logger.info(json.dumps(out))
