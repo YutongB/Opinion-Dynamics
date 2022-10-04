@@ -1,9 +1,7 @@
-from collections import namedtuple
 from functools import cache
 from scipy.stats import norm, binom
-from numpy.random import uniform
 import numpy as np
-import graph_tool.all as gt
+from graph_tool.all import adjacency
 
 BIAS_SAMPLES = 21
 
@@ -71,11 +69,11 @@ def std_distr(distrs, mean):
 
 def friendliness_mat(g):
     # takes roughly 300ms for graph of n=10
-    return gt.adjacency(g, weight=g.ep.friendliness).toarray()
+    return adjacency(g, weight=g.ep.friendliness).toarray()
 
 
 def adjacency_mat(g):
-    return gt.adjacency(g).toarray()
+    return adjacency(g).toarray()
 
 
 def avg_dist_in_belief(friendliness, posterior_distr):

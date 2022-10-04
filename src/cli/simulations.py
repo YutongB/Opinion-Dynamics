@@ -1,15 +1,18 @@
 
 import multiprocessing
+from time import sleep
 import numpy as np
 import timeit
 import json
 
 from src.cli.make_sim_params import first_k_with_value_then_random
 from src.analyse.analyse import frac_asymptotic_system, num_asymptotic_agents, num_asymptotic_agents_theta
-from src.simulation.graphs import make_graph_generator
-from src.simulation.runsim import run_ensemble
+from src.simulation.graphs import gen_bba_graph, get_edge_generator, gen_complete_graph
+from src.simulation.runsim import run_ensemble, run_simulation, make_progress
 from src.simulation.initsim import gen_prior_param
 from src.utils import timestamp
+
+from rich.progress import Progress
 
 import logging
 
@@ -17,18 +20,15 @@ import logging
 logger = logging.getLogger('log')
 logger.setLevel(logging.INFO)
 
-logpath = f"output/bigexperiment-1.log"
+logpath = f"output/bigexperiment-opponents-nomean.log"
 ch = logging.FileHandler(logpath)
 ch.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(ch)
 
-
-n, runs = 100, 10
-# n, runs = 100, 10
+n, runs = 100, 100
 asymp_max_iters = 99
-num_partisans_sweep = range(0, n)
+num_partisans_sweep = list(range(0, n))
 # num_partisans_sweep = [40]
-
 
 bias = 0.6           # theta0
 partisan_mean = 0.3  # thetap
@@ -41,7 +41,7 @@ ret = {}
 def make_coin_list(bias, max_steps, num_coins=1):
     return [np.random.binomial(num_coins, bias) for _ in range(max_steps)]
 
-coinslist = make_coin_list(bias=0.6, max_steps=10000)
+coinslist = make_coin_list(bias=bias, max_steps=max_steps)
 
 def first_k_with_value_then_random(value, k):
     # eg: value = 5, k = 3 => "5,5,5,5,5,r" (the rest are treated as random, if any.)
@@ -50,7 +50,8 @@ def first_k_with_value_then_random(value, k):
 def flist_to_str(lst: list[float]):
     return ','.join([str(x) for x in lst])
 
-def run(num_partisans):
+def run(params):
+    num_partisans, run = params
 
     frac_partisans = num_partisans / n
     prior_mean = first_k_with_value_then_random(partisan_mean, num_partisans)
@@ -68,38 +69,60 @@ def run(num_partisans):
             "sd_range": (0.2, 0.8),
         },
         "max_steps": max_steps,
-        "true_bias": 0.6,
+        "true_bias": bias,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,
         "asymptotic_learning_max_iters": 99,
         "DWeps": 1,
         "disruption": num_partisans,
         "log": True,  # need to log to get mean_list
-        "coinslist": coinslist,
-        "break_on_asymptotic_learning": False,
+        "coinslist": None,  # coin list needs to be None to have different simulations
+        "break_on_asymptotic_learning": True,
     }
-
-
-    res = run_ensemble(runs=runs, gen_graph=make_graph_generator(n, "allies"), sim_params=sim_params,
-                        title=f"{frac_partisans:.2f} Partisans")
     
+    # gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
+    gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
+
+    sim = run_simulation(gen_graph(), **sim_params, progress=False)
+    if sim is None:
+        return None
+
     # use mean[num_partisans:] for all non-partisans
-    non_partisans_mean = [mean[num_partisans:].tolist() for mean in res[0].mean_list]
-    asymptotic = res[0].asymptotic
+    non_partisans_mean = [mean[num_partisans:].tolist() for mean in sim.mean_list]
+    asymptotic = sim.asymptotic
+    
 
+    out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, non_partisans_mean=non_partisans_mean, run=run)
+    # out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, run=run)
 
-    out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, non_partisans_mean=non_partisans_mean)
 
     logger.info(json.dumps(out))
+    return num_partisans
 
 
 def main():
     time1 = timeit.default_timer()
-
-    with multiprocessing.Pool(10) as p:
-        res = p.map(run, [x for x in num_partisans_sweep])
-        print(res)
     
+    with make_progress() as progress:
+
+        param_sweep = [(num_partisans, run) for num_partisans in num_partisans_sweep for run in range(runs)]
+
+        sweep = progress.add_task("[bold purple]Sweeping", total=len(param_sweep), )
+        runs_completed = [0] * len(num_partisans_sweep)
+        task_ids = [None] * len(num_partisans_sweep)
+
+        with multiprocessing.Pool(10) as pool:
+            for res in pool.imap_unordered(run, param_sweep):
+
+                if task_ids[res] is None:
+                    task_ids[res] = progress.add_task(f"{res} partisans", total=runs)
+                progress.advance(task_ids[res])
+                progress.advance(sweep)
+                runs_completed[res] += 1
+                if runs_completed[res] == runs:
+                    progress.remove_task(task_ids[res])
+                    task_ids[res] = None
+
     time2 = timeit.default_timer()
     print(f'Time taken: {(time2 - time1):.2f} seconds')
 

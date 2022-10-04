@@ -10,7 +10,7 @@ def parser_handle_graph(parser):
 
     # parser.add_argument("-l", "--leader", default="none", choices=["none", "for", "against"], help="generate a directed graph with a leader")
 
-    parser.add_argument('-x', "--mode", choices=["complete", "balanced"],
+    parser.add_argument('-x', "--mode", choices=["complete", "balanced", "bba"],
                         help="what way to run the simulations", default="complete")
 
     parser.add_argument("--mean_range", nargs=2,

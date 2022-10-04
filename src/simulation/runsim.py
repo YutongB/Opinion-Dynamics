@@ -49,7 +49,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    log=None, DWeps=1, coinslist=None,
                    disruption = 0,
                    break_on_asymptotic_learning = True,
-                   hide_progress_after_complete = True) -> SimResults:
+                   hide_progress_after_complete = True,
+                   title="Simulation") -> SimResults:
     """
     max_steps (T in the paper) - maximum number of steps to run the simulation
     """
@@ -76,7 +77,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
 
     if progress:
         if task_id is None:
-            task_id = progress.add_task("Simulation", total=max_steps)
+            task_id = progress.add_task(title, total=max_steps)
         else:
             progress.start_task(task_id)
     
@@ -140,7 +141,8 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
     if progress:
         progress.update(task_id, visible=not hide_progress_after_complete)
 
-    agent_is_asymptotic = np.array(iters_asymptotic_learning_agents) >= asymptotic_learning_max_iters
+    # agent_is_asymptotic = np.array(iters_asymptotic_learning_agents) >= asymptotic_learning_max_iters
+    agent_is_asymptotic = np.array(iters_asymptotic_learning_agents)
 
     if log is None:
         return SimResults(steps=steps,

@@ -5,8 +5,7 @@ import numpy as np
 import pandas as pd
 import graph_tool as gt 
 import plotly.express as px
-import gif
-from tqdm import tqdm
+import math
 
 from src.analyse.results import SimResults, read_graph, read_results
 from src.simulation.sim import BIAS_SAMPLES
@@ -84,22 +83,34 @@ class AnalyseSimulation:
         plt.xlabel("Number of consecutive asymptotic learning steps")
         plt.ylabel("Frequency")
 
-    def dwell_time(self): 
+    def dwell_time(self, return_index = False): 
         sim = self.results
         # dwelltime = []
         steps = np.array(sim.asymptotic)
+        # last index at dwell
         dwell_index = np.where(np.diff(steps) < 0)[0]
 
         for i in dwell_index: # make sure that code above worked correctly
             assert (steps[i] > 0 and steps[i+1] == 0)
 
         dwell_time = [steps[i] for i in dwell_index]
-        return dwell_time, dwell_index
+        if return_index:
+            return dwell_time, dwell_index
+        return dwell_time
     
-    def plot_dwell_time(self, bins = 'auto', log = False):
-        plt.hist(self.dwell_time(), label = "Dwell time", bins = bins, log = log)
-        plt.xlabel("Dwell time")
-        plt.ylabel("Frequency")
+    def plot_dwell_time(self, bins = 'auto', log = True, label = None):
+        plt.hist(self.dwell_time(), bins = bins, weights = np.ones_like(self.dwell_time())/len(self.dwell_time()), density = False, log = log, histtype="step", alpha = 1,label = label, stacked= True)
+        plt.xlabel("$ t_{\\rm d}$")
+        plt.ylabel("Normalized Number")
+
+
+    def plot_dwell_time_wrt_belief(self, bins = 60, log = True, label = None):
+        dwell_time, dwell_index = self.dwell_time(return_index = True)
+        belief_at_dwell = [self.results.mean_list[i][-1] for i in dwell_index]
+        plt.hist(belief_at_dwell, weights =  np.ones_like(belief_at_dwell)/len(belief_at_dwell),bins = bins, density=False,log = log, histtype="bar", label = label, stacked = True)
+        plt.xlabel("$ \\langle \\theta \\rangle$")
+        plt.ylabel("Normalized Number")
+
 
     def dt_at_true(self):
         sim = self.results
@@ -212,14 +223,15 @@ class AnalyseSimulation:
     def plot_confidence_in_beliefs_and_sum(self, beliefs: List[float], opacity=.8):
         for belief in beliefs:
             distr = self.calc_confidence_in_belief([belief])[:, -1, :]
-            plt.plot(distr, alpha=opacity, label = f"$\\theta = {belief}$")
+            plt.plot(distr, alpha=opacity, label = f"$\\theta = {belief}$",  linewidth = 0.9)
         n = len(self.results.initial_distr)
-        plt.plot(np.sum(np.sum(self.calc_confidence_in_belief(beliefs), axis=2), axis=1) / n, alpha=opacity, label = "Sum of all beliefs" )
+        plt.plot(np.sum(np.sum(self.calc_confidence_in_belief(beliefs), axis=2), axis=1) / n, alpha=opacity, label = "Sum" , linewidth = 1)
 
-        plt.title(f"Confidence in beliefs θ={beliefs} and sum of beliefs, sim {self.idx}")
-        plt.xlabel("Step")
-        plt.ylabel("Confidence")
-        plt.legend(bbox_to_anchor=(1.04,1), loc="upper left")
+        # plt.title(f"Confidence in beliefs θ={beliefs} and sum of beliefs, sim {self.idx}")
+        plt.xlabel("Timesteps")
+        plt.ylabel("$x_i(t, \\theta)$")
+        plt.legend()
+        # plt.legend(bbox_to_anchor=(1.04,1), loc="upper left")
 
 
     '''
@@ -234,7 +246,7 @@ class AnalyseSimulation:
         plt.grid(linestyle='dotted')
 
         # plt.title(f"Mean/Iter, sim {self.idx}")
-        plt.xlabel("Iteration")
+        plt.xlabel("Timesteps")
         plt.ylabel("$ \\langle \\theta\\rangle $")
         n = len(self.results.initial_distr)
         # plt.legend(range(n))
@@ -260,16 +272,16 @@ class AnalyseSimulation:
         plt.xlabel("Iteration")
         plt.ylabel("Standard Deviation")
         n = len(self.results.initial_distr)
-        plt.legend(range(n))
+        # plt.legend(range(n))
 
 
-    def plot_distr(self, step, title=None, simid=None):
+    def plot_distr(self, step, title=None, simid=None, color=None):
         sim = self.results
         # alpha is transparency of graph lines
         if simid is None:
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=1)
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=1, color = color)
         else:
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1)
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color)
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
@@ -317,6 +329,7 @@ class AnalyseSimulation:
         return fig
 
     def plotly_distr_gif(self):
+        import gif
         num_steps = self.results.distrs.shape[0]
         frames = [gif.frame(self.plotly_distr_frame)(step) for step in range(num_steps)]
         fname = 'plots/' + get_clean_last_results_fname() + '.gif'
@@ -345,6 +358,37 @@ class AnalyseSimulation:
         plt.hist(dist_between_changes, bins=60)
         plt.xlabel("Number of steps between change")
         plt.ylabel("Frequency")
+
+
+    '''
+    Right and wrong t_A
+    '''
+    def agent_t_A(self):
+        sim = self.results
+        agent_asym_time = sim.steps - sim.agent_is_asymptotic
+        return agent_asym_time 
+
+                
+    def get_right_and_wrong(self):
+        t_right = []
+        t_wrong = []
+        sim = self.results
+        t_A_list =  list(zip(self.agent_t_A(), sim.mean_list[-1]))
+        # t_right, t_wrong = [],[]
+        for (ta, mean) in t_A_list:
+            if math.isclose(mean, 0.6, abs_tol=0.001):
+                t_right.append(ta)
+            else:
+                t_wrong.append(ta)
+
+        return t_right, t_wrong
+
+    def plot_right_and_wrong(self, density = True, bins = 'auto'):
+        bt_right, bt_wrong = self.get_right_and_wrong()
+        plt.hist(bt_right, density=density, bins = bins, alpha = .8, color="g")
+        plt.hist(bt_wrong, density=density, bins = bins, alpha = .8, color="r")
+
+
 
 
 

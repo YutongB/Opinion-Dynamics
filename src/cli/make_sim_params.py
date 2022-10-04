@@ -9,19 +9,21 @@ def make_coin_list(bias, max_steps, num_coins=1):
     # return [1] * 6000 + [0] * 4000
 
 def first_k_with_value_then_random(value, k):
-    # eg: value = 5, k = 3 => "5,5,5,5,5,r" (the rest are treated as random, if any.)
+    # eg: value = 5, k = 3 => "5,5,5,r" (the rest are treated as random, if any.)
     return ",".join([str(value)] * k) + ',r'
 
 def flist_to_str(lst: List[float]):
     return ','.join([str(x) for x in lst])
 
 def get_sim_params():
-    num_partisans = 0
-    n = 99
-    # coinslist = None
-    coinslist = make_coin_list(bias=0.6, max_steps=10000)
+    num_partisans =1
+    n = 60
+    coinslist = None
+    # coinslist = make_coin_list(bias=0.6, max_steps=10000)
     # coinslist = [1] * 6000 + [0] * 4000
-    prior_mean = first_k_with_value_then_random(0.3, num_partisans)
+
+    # prior_mean = ",".join(['0.3'] * 39 + ['0.9']) + ',r'
+    prior_mean = first_k_with_value_then_random(0.6, num_partisans)
     prior_mean = flist_to_str(gen_prior_param(prior_mean, n, range=(0,1)))
     # prior_mean = '0.3'
 
@@ -46,7 +48,7 @@ def get_sim_params():
         "disruption": num_partisans,
         "log": True,  # need to log to get mean_list
         "coinslist": coinslist,
-        "break_on_asymptotic_learning": False,
+        "break_on_asymptotic_learning": True,
     }
 
     return sim_params

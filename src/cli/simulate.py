@@ -4,7 +4,7 @@ from src.cli.make_sim_params import get_sim_params
 from src.cli.parseargs import parse_args
 from src.analyse.results import dump_json
 from src.simulation.balance import run_balanced
-from src.simulation.graphs import make_graph_generator
+from src.simulation.graphs import gen_bba_graph, gen_complete_graph, get_edge_generator
 from src.simulation.runsim import run_ensemble, run_simulation
 from src.utils import timestamp
 
@@ -59,8 +59,11 @@ def main():
     else:
         sim_params = parse_sim_params(args)
 
-    gen_graph = make_graph_generator(n=n, edges=args.edges)
-
+    if args.mode == 'complete':
+        gen_graph = lambda: gen_complete_graph(n, get_edge_generator(args.edges))
+    if args.mode == 'bba':
+        gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
+        
 
     if args.initfile is not None:
         print("Using initial parameters f{args.initfile}.")
@@ -77,7 +80,7 @@ def main():
 
     res = None
 
-    if args.mode == "complete":
+    if args.mode == "complete" or args.mode == "bba":
         print("Starting {}\ngenerating complete graph of {} nodes with {} relationship\n".format(
             f"ensemble of {runs} simulations" if not args.single else "simulation", 
             n, args.edges))
@@ -86,11 +89,12 @@ def main():
     elif args.mode == 'balanced':
         # res = run_balanced(sim_params=sim_params, threshold=runs, n=n, m=args.edges)
         res = run_balanced(sim_params=sim_params, threshold=runs, n=n)
+    else:
+        raise NotImplementedError("Invalid graph mode.")
 
-
-    fname = "output/res-{}.json".format(timestamp())
     assert(res != None)
 
+    fname = "output/res-{}.json".format(timestamp())
     out = dict(results=res, args=vars(args), sim_params=sim_params)
     dump_json(out, fname)
     print("Wrote latest results to", fname)

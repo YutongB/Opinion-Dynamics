@@ -1,20 +1,21 @@
 from random import choice
-import graph_tool as gt
+import graph_tool.all as gt
 from numpy.random import uniform
+from typing import Callable
 
+edge_generator_type = Callable[[], int]
 
-def make_graph_generator(n, edges):
+def get_edge_generator(edges: str) -> edge_generator_type:
     if edges == "friends" or edges == "allies":
-        generator = lambda: ADJ_FRIEND
+        return lambda: ADJ_FRIEND
     elif edges == "enemies":
-        generator = lambda: ADJ_ENEMY
+        return lambda: ADJ_ENEMY
     elif edges == "random":
-        generator = gen_relationship_binary
+        return gen_relationship_binary
     elif edges == "random_unif":
-        generator = gen_relationship_uniform
+        return gen_relationship_uniform
     
-    return lambda: gen_complete_graph(n, generator)
-
+    raise NotImplementedError("Invalid edge type")
 
 def draw_graph(g, show_vertex_labels=False, width=150):
 
@@ -27,9 +28,8 @@ def draw_graph(g, show_vertex_labels=False, width=150):
                   edge_text=g.ep.friendliness,
                   output_size=(width, width))
 
-def create_model_graph(g=None):
-    if g is None:
-        g = gt.Graph(directed=False)
+def create_model_graph(seed_graph: gt.Graph=None) -> gt.Graph:
+    g = seed_graph or gt.Graph(directed=False)
     # nodes represent people
     # edges represent 'knowing' relationships of people
 
@@ -80,7 +80,7 @@ def pair_of_opponents():
     add_enemies(g, v1, v2)
     return g
 
-def gen_complete_graph(n, generator):
+def gen_complete_graph(n: int, edge_generator: edge_generator_type) -> gt.Graph:
     g = create_model_graph()
     v = g.add_vertex()
     vlist = [v]
@@ -88,11 +88,22 @@ def gen_complete_graph(n, generator):
     for _i in range(1, n):
         u = g.add_vertex()
         for v in vlist:
-            add_relationship(g, u, v, generator())
+            add_relationship(g, u, v, edge_generator())
         vlist.append(u)
 
     return g
 
+def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Graph:
+    """Generates a Barabási-Albert network"""
+    g = create_model_graph()
+    g = gt.price_network(n, m, directed=False)
+
+    g = create_model_graph(g)
+
+    import numpy as np
+    g.ep.friendliness.a = np.array([edge_generator()] * g.num_edges())
+    # g.ep.friendliness.a = np.fromfunction(edge_generator, (g.num_edges(),), dtype=float)
+    return g
 
 def gen_relationship_binary():
     return choice([ADJ_ENEMY, ADJ_FRIEND])
