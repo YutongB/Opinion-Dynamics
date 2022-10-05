@@ -12,29 +12,31 @@ from src.simulation.runsim import run_ensemble, run_simulation, make_progress
 from src.simulation.initsim import gen_prior_param
 from src.utils import timestamp
 
-from rich.progress import Progress
-
 import logging
 
 # use logger for thread-safe file writing (otherwise they might overwrite each other)
 logger = logging.getLogger('log')
 logger.setLevel(logging.INFO)
 
-logpath = f"output/bigexperiment-opponents-nomean.log"
+logpath = f"output/bigexperiment.log"
 ch = logging.FileHandler(logpath)
 ch.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(ch)
 
-n, runs = 100, 100
+n = 100
+runs = 1000
+gap = 5
 asymp_max_iters = 99
-num_partisans_sweep = list(range(0, n))
+num_partisans_sweep = list(range(0, n, gap))
 # num_partisans_sweep = [40]
 
 bias = 0.6           # theta0
-partisan_mean = 0.3  # thetap
+partisan_mean = 0.6  # thetap
 partisan_sd = 0.01
 
 max_steps = 10000
+
+param_sweep = [(num_partisans, run) for num_partisans in num_partisans_sweep for run in range(runs)]
 
 ret = {}
 
@@ -49,6 +51,9 @@ def first_k_with_value_then_random(value, k):
 
 def flist_to_str(lst: list[float]):
     return ','.join([str(x) for x in lst])
+
+gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
+# gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
 
 def run(params):
     num_partisans, run = params
@@ -80,21 +85,26 @@ def run(params):
         "break_on_asymptotic_learning": True,
     }
     
-    # gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
-    gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
-
     sim = run_simulation(gen_graph(), **sim_params, progress=False)
     if sim is None:
         return None
 
     # use mean[num_partisans:] for all non-partisans
-    non_partisans_mean = [mean[num_partisans:].tolist() for mean in sim.mean_list]
-    asymptotic = sim.asymptotic
-    
+    # non_partisans_mean = [mean[num_partisans:].tolist() for mean in sim.mean_list]
+    # asymptotic = sim.asymptotic
 
-    out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, non_partisans_mean=non_partisans_mean, run=run)
-    # out = dict(partisans=round(frac_partisans, 2), asymptotic=asymptotic, run=run)
+    agent_t_A = sim.steps - sim.agent_is_asymptotic
+    agent_final_mean = sim.mean_list[-1]
 
+    right_wrong_mask = np.isclose(agent_final_mean, bias, atol=0.001)
+    t_right = agent_t_A[right_wrong_mask]
+    t_wrong = agent_t_A[~right_wrong_mask]
+
+    mean_t_right = np.mean(t_right)
+    mean_t_wrong = np.mean(t_wrong)
+    mean_t_diff = mean_t_right - mean_t_wrong
+
+    out = dict(partisans=round(frac_partisans, 2), mean_t_diff=mean_t_diff, run=run)
 
     logger.info(json.dumps(out))
     return num_partisans
@@ -102,10 +112,15 @@ def run(params):
 
 def main():
     time1 = timeit.default_timer()
+
+    # delete log file if it exists
+    try:
+        import os
+        os.remove(logpath)
+    except OSError:
+        pass
     
     with make_progress() as progress:
-
-        param_sweep = [(num_partisans, run) for num_partisans in num_partisans_sweep for run in range(runs)]
 
         sweep = progress.add_task("[bold purple]Sweeping", total=len(param_sweep), )
         runs_completed = [0] * len(num_partisans_sweep)
@@ -124,6 +139,15 @@ def main():
                     task_ids[res] = None
 
     time2 = timeit.default_timer()
+
+    this_log = logpath.split(".")[0]
+    with open(logpath, 'r') as f:
+        data = f.read()
+    this_logpath = this_log + "-" + timestamp() + ".log"
+    with open(this_logpath, "w") as f:
+        f.write(data)
+    print("Wrote to", this_logpath)
+
     print(f'Time taken: {(time2 - time1):.2f} seconds')
 
 if __name__ == '__main__':
