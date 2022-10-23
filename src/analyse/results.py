@@ -34,7 +34,8 @@ def read_graph(adjacency, friendliness):
     n = len(adjacency)
     g.add_vertex(n)
     g.add_edge_list([(u, v, friendliness[u][v])
-                     for u, v in matrix_to_edge_list(adjacency)],
+                     for u, v in matrix_to_edge_list(adjacency)
+                     if adjacency[u][v]],
                     eprops=[g.ep.friendliness])
 
     return g

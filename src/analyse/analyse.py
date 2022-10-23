@@ -7,8 +7,9 @@ import graph_tool as gt
 import plotly.express as px
 import math
 
-from src.analyse.results import SimResults, read_graph, read_results
+from src.analyse.results import SimResults, read_graph, read_results, dump_json
 from src.simulation.sim import BIAS_SAMPLES
+from src.utils import timestamp
 
 def indexof_belief(belief):
     try:
@@ -26,6 +27,14 @@ class AnalyseSimulation:
         self.n = args['size']
         self.asymptotic = self.results.asymptotic[-1] == self.sim_params["asymptotic_learning_max_iters"]
 
+    def dump(self):
+        fname = "output/res-{}.json".format(timestamp())
+        out = dict(results=self.results, args=self.args, sim_params=self.sim_params)
+        dump_json(out, fname)
+        print("Wrote latest results to", fname)
+        with open('output/last_results', 'w') as f:
+            f.write(fname)
+
     '''
     Functions for drawing graphs
     '''
@@ -33,7 +42,20 @@ class AnalyseSimulation:
         return read_graph(self.results.adjacency, self.results.friendliness)
 
     def show_graph(self):
-        gt.draw.graphviz_draw(self.graph)
+        # draw the graph, labelling the edge weights by friendliness
+        from graph_tool.draw import graph_draw
+        edge_color_map = {-1.0: (199/255, 27/255, 0, 1),  # red
+                      1.0: (0, 199/255, 30/255, 1),  # green
+                      0.0: (0, 0, 0, 0)}  # black
+        g = self.graph()
+        edge_color = g.new_ep('vector<double>')
+        for f, e in zip(g.ep.friendliness, g.edges()):
+            edge_color[e] = edge_color_map[f]
+
+        graph_draw(g, vertex_text=g.vertex_index, 
+                    edge_text=g.ep.friendliness,
+                    edge_color=edge_color)
+
 
     def show_params(self):
         print("sim params ------")
@@ -57,9 +79,9 @@ class AnalyseSimulation:
             prob.append(value/(index+1))
         prob.pop(0)
         # print(sum)
-        plt.plot(prob, label = label)
-        plt.xlabel("Step")
-        plt.ylabel("Probability of heads")
+        plt.plot(prob, label = label, linewidth = 0.7, alpha = 0.8)
+        plt.xlabel("Timesteps")
+        plt.ylabel("Estimated probability of heads")
     """
     Ploting the number of steps the system is in asymptotic learning consecutively
     Code will terminate after reaching 100 steps if "break_on_asymptotic_learning": True,
@@ -240,9 +262,11 @@ class AnalyseSimulation:
     def plot_all_mean(self):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(sim.mean_list[:, 0], color="black", linestyle='dashed', linewidth=4)
+        plt.plot(sim.mean_list[:, 0], color="black", linestyle='dashed', linewidth=4,label="Partisan")
         
-        plt.plot(sim.mean_list[:, 1:], alpha=0.5)
+        plt.plot(sim.mean_list[:, 1:], alpha=0.8, linewidth=1)
+        # plt.plot(sim.mean_list[:, 2], alpha=0.8, linewidth=1,label="Agent 2")
+
         plt.grid(linestyle='dotted')
 
         # plt.title(f"Mean/Iter, sim {self.idx}")
@@ -275,18 +299,21 @@ class AnalyseSimulation:
         # plt.legend(range(n))
 
 
-    def plot_distr(self, step, title=None, simid=None, color=None):
+    def plot_distr(self, step, title=None, simid=None, color=None, label = label):
         sim = self.results
         # alpha is transparency of graph lines
         if simid is None:
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth=1, color = color)
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,0], linewidth=2,  color="black", linestyle='dashed',label="Partisan")
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1:],linewidth = 1, alpha=0.8)
+            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],label="Agent 2")
+
         else:
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color)
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color, label = label)
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
             title = f"Distribution step {step}"
-
+        plt.grid(linestyle='dotted')
         # plt.title(f"{title}, sim {self.idx}")
         plt.xlabel("$\\theta$")
         plt.ylabel("Probability")

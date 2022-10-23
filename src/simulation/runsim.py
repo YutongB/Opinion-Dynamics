@@ -88,7 +88,6 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
     for i in range(max_steps):
 
         coins = None if coinslist is None else coinslist[i]
-
         coins, posterior = step_simulation(
             g, prior_distr=prior_distr, true_bias=true_bias, learning_rate=learning_rate,
             friendliness=friendliness,

@@ -4,6 +4,7 @@ from time import sleep
 import numpy as np
 import timeit
 import json
+from collections import defaultdict
 
 from src.cli.make_sim_params import first_k_with_value_then_random
 from src.analyse.analyse import frac_asymptotic_system, num_asymptotic_agents, num_asymptotic_agents_theta
@@ -24,19 +25,16 @@ ch.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(ch)
 
 n = 100
-runs = 1000
-gap = 5
-asymp_max_iters = 99
-num_partisans_sweep = list(range(0, n, gap))
-# num_partisans_sweep = [40]
+runs = 100
 
 bias = 0.6           # theta0
 partisan_mean = 0.6  # thetap
 partisan_sd = 0.01
 
+asymp_max_iters = 99
 max_steps = 10000
 
-param_sweep = [(num_partisans, run) for num_partisans in num_partisans_sweep for run in range(runs)]
+
 
 ret = {}
 
@@ -52,11 +50,14 @@ def first_k_with_value_then_random(value, k):
 def flist_to_str(lst: list[float]):
     return ','.join([str(x) for x in lst])
 
-gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
-# gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
+# gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
+
 
 def run(params):
-    num_partisans, run = params
+    vals, run = params
+    m, = vals
+    num_partisans = 0
+    gen_graph = lambda: gen_bba_graph(n, m=m, edge_generator=get_edge_generator("enemies"))
 
     frac_partisans = num_partisans / n
     prior_mean = first_k_with_value_then_random(partisan_mean, num_partisans)
@@ -104,10 +105,11 @@ def run(params):
     mean_t_wrong = np.mean(t_wrong)
     mean_t_diff = mean_t_right - mean_t_wrong
 
-    out = dict(partisans=round(frac_partisans, 2), mean_t_diff=mean_t_diff, run=run)
+    # out = dict(partisans=round(frac_partisans, 2), mean_t_diff=mean_t_diff, run=run)
+    out = dict(m=m, mean_t_diff=mean_t_diff, run=run)
 
     logger.info(json.dumps(out))
-    return num_partisans
+    return params
 
 
 def main():
@@ -119,24 +121,27 @@ def main():
         os.remove(logpath)
     except OSError:
         pass
+
+    param_sweep = [(x,) for x in range(1, n)]
     
     with make_progress() as progress:
+        param_sweep = [(vals, run) for vals in param_sweep for run in range(runs)]
 
         sweep = progress.add_task("[bold purple]Sweeping", total=len(param_sweep), )
-        runs_completed = [0] * len(num_partisans_sweep)
-        task_ids = [None] * len(num_partisans_sweep)
+        runs_completed = defaultdict(lambda: 0)
+        task_ids = defaultdict(lambda: None)
 
         with multiprocessing.Pool(10) as pool:
             for res in pool.imap_unordered(run, param_sweep):
-
-                if task_ids[res] is None:
-                    task_ids[res] = progress.add_task(f"{res} partisans", total=runs)
-                progress.advance(task_ids[res])
+                vals, i = res
+                if task_ids[vals] is None:
+                    task_ids[vals] = progress.add_task(f"m={vals[0]}", total=runs)
+                progress.advance(task_ids[vals])
                 progress.advance(sweep)
-                runs_completed[res] += 1
-                if runs_completed[res] == runs:
-                    progress.remove_task(task_ids[res])
-                    task_ids[res] = None
+                runs_completed[vals] += 1
+                if runs_completed[vals] == runs:
+                    progress.remove_task(task_ids[vals])
+                    task_ids[vals] = None
 
     time2 = timeit.default_timer()
 

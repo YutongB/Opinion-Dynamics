@@ -6,7 +6,7 @@ import numpy as np
 
 def make_coin_list(bias, max_steps, num_coins=1):
     return [np.random.binomial(num_coins, bias) for _ in range(max_steps)]
-    # return [1] * 6000 + [0] * 4000
+    # return [1] * 500 + [0] 
 
 def first_k_with_value_then_random(value, k):
     # eg: value = 5, k = 3 => "5,5,5,r" (the rest are treated as random, if any.)
@@ -17,17 +17,17 @@ def flist_to_str(lst: List[float]):
 
 def get_sim_params():
     num_partisans =1
-    n = 60
-    coinslist = None
+    n = 100
+    # coinslist = None
     # coinslist = make_coin_list(bias=0.6, max_steps=10000)
-    # coinslist = [1] * 6000 + [0] * 4000
+    coinslist = [0] * 500 + [1] 
 
     # prior_mean = ",".join(['0.3'] * 39 + ['0.9']) + ',r'
-    prior_mean = first_k_with_value_then_random(0.6, num_partisans)
+    prior_mean = first_k_with_value_then_random(0.3, num_partisans)
     prior_mean = flist_to_str(gen_prior_param(prior_mean, n, range=(0,1)))
     # prior_mean = '0.3'
 
-    prior_sd = first_k_with_value_then_random(0.01, num_partisans)
+    prior_sd = first_k_with_value_then_random(0.001, num_partisans)
     prior_sd = flist_to_str(gen_prior_param(prior_sd, n, range=(0.2, 0.8)))
     # prior_sd = '0.5'
 
@@ -39,7 +39,7 @@ def get_sim_params():
             "mean_range": (0,1),
             "sd_range": (0.2, 0.8),
         },
-        "max_steps": 10000,
+        "max_steps": 501,
         "true_bias": 0.6,
         "tosses_per_iteration": 1,
         "learning_rate": 0.25,
@@ -48,7 +48,7 @@ def get_sim_params():
         "disruption": num_partisans,
         "log": True,  # need to log to get mean_list
         "coinslist": coinslist,
-        "break_on_asymptotic_learning": True,
+        "break_on_asymptotic_learning": False,
     }
 
     return sim_params

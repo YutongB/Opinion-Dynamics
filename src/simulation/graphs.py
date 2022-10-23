@@ -93,6 +93,29 @@ def gen_complete_graph(n: int, edge_generator: edge_generator_type) -> gt.Graph:
 
     return g
 
+def gen_triad(num_enemies: int) -> gt.Graph:
+    g = create_model_graph()
+    v1, v2, v3 = g.add_vertex(3)
+    if num_enemies == 0:
+        add_friends(g, v1, v2)
+        add_friends(g, v1, v3)
+        add_friends(g, v2, v3)
+    elif num_enemies == 1:
+        add_friends(g, v1, v2)
+        add_enemies(g, v1, v3)
+        add_friends(g, v2, v3)
+    elif num_enemies == 2:
+        add_enemies(g, v1, v2)
+        add_friends(g, v1, v3)
+        add_enemies(g, v2, v3)
+    elif num_enemies == 3:
+        add_enemies(g, v1, v2)
+        add_enemies(g, v1, v3)
+        add_enemies(g, v2, v3)
+    else:
+        raise ValueError("Invalid number of enemies")
+    return g
+
 def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Graph:
     """Generates a Barabási-Albert network"""
     g = create_model_graph()
@@ -108,7 +131,7 @@ def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Gra
 def gen_relationship_binary():
     return choice([ADJ_ENEMY, ADJ_FRIEND])
 
-
+# this will return float in range [-1, 1]
 def gen_relationship_uniform():
     return uniform(ADJ_ENEMY, ADJ_FRIEND)
 
