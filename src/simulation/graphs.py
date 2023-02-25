@@ -106,8 +106,8 @@ def gen_triad(num_enemies: int) -> gt.Graph:
         add_friends(g, v2, v3)
     elif num_enemies == 2:
         add_enemies(g, v1, v2)
-        add_friends(g, v1, v3)
-        add_enemies(g, v2, v3)
+        add_friends(g, v2, v3)
+        add_enemies(g, v1, v3)
     elif num_enemies == 3:
         add_enemies(g, v1, v2)
         add_enemies(g, v1, v3)
@@ -116,7 +116,48 @@ def gen_triad(num_enemies: int) -> gt.Graph:
         raise ValueError("Invalid number of enemies")
     return g
 
+
+# def gen_incomplete_link(edge_list: list) -> gt.Graph:
+#     if len(edge_list) != 2:
+#         raise ValueError("Invalid number of vertices")
+#     g = create_model_graph()
+#     v1,v2,v3 = g.add_vertex(3)
+#     if edge_list[0] == 1:
+#         add_friends(g, v1, v2)
+#     elif edge_list[0] == -1:
+#         add_enemies(g, v1, v2)
+#     if edge_list[1] == 1:
+#         add_friends(g, v2, v3)
+#     elif edge_list[1] == -1:
+#         add_enemies(g, v2, v3)
+#     else:
+#         raise ValueError("Invalid edge type")
+#     return g
+
+
+# More general version
+def gen_incomplete_link(edge_list: list) -> gt.Graph:
+    num_vertices = len(edge_list) + 1
+    g = create_model_graph()
+    vertices =  list(g.add_vertex(num_vertices))
+    for v, edge in zip(range(num_vertices-1), edge_list):
+        add_relationship(g, v, v + 1, edge)
+    return g
+
+
 def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Graph:
+    """Generates a Barabási-Albert network"""
+    g = gt.price_network(n, m, directed=False)
+
+    g = create_model_graph(g)
+
+    import numpy as np
+    g.ep.friendliness.a = np.array([edge_generator()] * g.num_edges())
+    # g.ep.friendliness.a = np.fromfunction(edge_generator, (g.num_edges(),), dtype=float)
+    return g
+
+
+def gen_bba_graph_mixed(n: int, m: int) -> gt.Graph:
     """Generates a Barabási-Albert network"""
     g = create_model_graph()
     g = gt.price_network(n, m, directed=False)
@@ -124,7 +165,7 @@ def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Gra
     g = create_model_graph(g)
 
     import numpy as np
-    g.ep.friendliness.a = np.array([edge_generator()] * g.num_edges())
+    g.ep.friendliness.a = np.random.choice((1, -1), g.num_edges())
     # g.ep.friendliness.a = np.fromfunction(edge_generator, (g.num_edges(),), dtype=float)
     return g
 

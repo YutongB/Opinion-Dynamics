@@ -11,6 +11,14 @@
             "module": "src.cli.simulate",
             "console": "integratedTerminal",
             "args": ["-e", "allies", "-r", "1", "-g"]
+        },
+        {
+            "name": "Python: Simulations",
+            "type": "python",
+            "request": "launch",
+            "module": "src.cli.simulations",
+            "console": "integratedTerminal",
+            "args": []
         }
     ]
 }

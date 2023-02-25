@@ -107,6 +107,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
         largest_change = np.max(np.abs(posterior - prior_distr), axis=1)
         largest_peak = 0.01 * np.max(prior_distr, axis=1)
         agent_is_asymptotic = largest_change < largest_peak  # one element for each agent
+        # iters_asymptotic_learning_agents = np.where(agent_is_asymptotic, iters_asymptotic_learning_agents + 1, 0)
         for i in range(len(agent_is_asymptotic)):  # loop over each agent
             if agent_is_asymptotic[i]:
                 iters_asymptotic_learning_agents[i] += 1

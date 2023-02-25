@@ -259,13 +259,13 @@ class AnalyseSimulation:
     '''
     Ploting system statistics 
     '''
-    def plot_all_mean(self):
+    def plot_all_mean(self, steps=10000-1):
         sim = self.results
         # alpha is transparency of graph lines
-        plt.plot(sim.mean_list[:, 0], color="black", linestyle='dashed', linewidth=4,label="Partisan")
+        plt.plot(sim.mean_list[:steps, 0], color="black", linestyle='dashed', linewidth=4,label="Partisan")
         
-        plt.plot(sim.mean_list[:, 1:], alpha=0.8, linewidth=1)
-        # plt.plot(sim.mean_list[:, 2], alpha=0.8, linewidth=1,label="Agent 2")
+        plt.plot(sim.mean_list[:steps, 1:], alpha=0.8, linewidth=1, label="Agent 2")
+        # plt.plot(sim.mean_list[:, 2], alpha=0.8, linewidth=1,label="Agent 3")
 
         plt.grid(linestyle='dotted')
 
@@ -273,7 +273,7 @@ class AnalyseSimulation:
         plt.xlabel("Timesteps")
         plt.ylabel("$ \\langle \\theta\\rangle $")
         n = len(self.results.initial_distr)
-        # plt.legend(range(n))
+        # plt.legend()
 
     def plot_non_partisan_mean(self,  LINEWIDTH= 0.5, ALPHA = 0.5, LABLE = None):
         sim = self.results
@@ -304,9 +304,9 @@ class AnalyseSimulation:
         # alpha is transparency of graph lines
         if simid is None:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,0], linewidth=2,  color="black", linestyle='dashed',label="Partisan")
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1:],linewidth = 1, alpha=0.8)
-            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],label="Agent 2")
-
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1:],linewidth = 1, alpha=0.8, label="Agent 2")
+            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3")
+            # plt.legend()
         else:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color, label = label)
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
@@ -415,7 +415,16 @@ class AnalyseSimulation:
         plt.hist(bt_right, density=density, bins = bins, alpha = .8, color="g")
         plt.hist(bt_wrong, density=density, bins = bins, alpha = .8, color="r")
 
+    
+    def get_dist_and_step(self, threshold= 0.9, source = 0, theta = 0.6):
+        sim = self.results
+        sim_graph = read_graph(sim.adjacency, sim.friendliness)
+        dist, _ = gt.search.dijkstra_search(sim_graph, sim_graph.edge_properties.friendliness, source=source)
+        dist_per_node = list(map(int, dist.get_array()))
+        pr_list = [np.sum(np.ndarray.flatten(self.calc_confidence_in_belief([theta])[:,i]) >= threshold) for i in range(len(self.results.initial_distr))]
+        return sorted(list(zip(dist_per_node, pr_list)))
 
+        
 
 
 

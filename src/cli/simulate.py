@@ -62,7 +62,7 @@ def main():
     if args.mode == 'complete':
         gen_graph = lambda: gen_complete_graph(n, get_edge_generator(args.edges))
     if args.mode == 'bba':
-        gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator("enemies"))
+        gen_graph = lambda: gen_bba_graph(n, m=3, edge_generator=get_edge_generator(args.edges))
         
 
     if args.initfile is not None:
