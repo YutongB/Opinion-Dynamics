@@ -28,7 +28,7 @@ ch.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(ch)
 
 n = 100
-runs = 1000
+runs = 100
 
 bias = 0.6           # theta0
 partisan_mean = 0.3  # thetap
@@ -92,12 +92,16 @@ def dwell_time_per_agent_by_distance_to_partisan(
         dwells_by_distance[dist].extend(dwell)
         number_of_agents_by_distance[dist] += 1
     
-    res = []
-    for n, d in zip(number_of_agents_by_distance, dwells_by_distance):
-        m = mean(d)
-        s = stdev(d, m) if n > 1 else 0
-        res.append((n, m, s))
-    return res
+    parts = zip(number_of_agents_by_distance, dwells_by_distance)
+    return list(parts)
+
+    # Agverage each sim
+    # res = []
+    # for n, d in parts:
+    #     m = mean(d)
+    #     s = stdev(d, m) if n > 1 else 0
+    #     res.append((n, m, s))
+    # return res
 
 def asymptotic_per_agent(dists):
     steps = len(dists) - 1
@@ -116,7 +120,7 @@ def asymptotic_per_agent(dists):
 def run(params):
     vals, run = params
     num_partisans, = vals
-    m = 3
+    m = 20
     gen_graph = lambda: gen_bba_graph(n, m=m, edge_generator=get_edge_generator("allies"))
 
     frac_partisans = num_partisans / n

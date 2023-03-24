@@ -194,7 +194,8 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simula
     with make_progress() as progress:
         results = []
         ensemble = progress.add_task(title, total=runs)
-
+        # This ensure we are using the same graph for all simulations
+        graph = gen_graph()
         for r in range(runs):
             if simulation_progress:
                 task_id = progress.add_task("Sim #{}".format(r+1))
@@ -203,7 +204,7 @@ def run_ensemble(runs: int, gen_graph, sim_params=None, title="Ensemble", simula
                 sim_params["coinslist"] = coinslists[r]
                 sim_params["prior"] = priors[r]
 
-            sim = run_simulation(gen_graph(), **sim_params,
+            sim = run_simulation(graph, **sim_params,
                                  progress=progress if simulation_progress else False,
                                  task_id=task_id if simulation_progress else None)
             results.append(sim)

@@ -222,11 +222,12 @@ class AnalyseSimulation:
         return distr
 
     def plot_confidence_in_belief_sum(self, beliefs: List[float], opacity=.8):
-        plt.plot(np.sum(self.calc_confidence_in_belief(beliefs), axis=2), alpha=opacity)
-        if len(beliefs) == 1:
-            plt.title(f"Confidence in belief θ={beliefs[0]}, sim {self.idx}")
-        else:
-            plt.title(f"Confidence in sum of beliefs θ={beliefs}, sim {self.idx}")
+
+        plt.plot(np.sum(self.calc_confidence_in_belief(beliefs)[1:], axis=2), alpha=opacity, linewidth=1)
+        # if len(beliefs) == 1:
+        #     plt.title(f"Confidence in belief θ={beliefs[0]}, sim {self.idx}")
+        # else:
+        #     plt.title(f"Confidence in sum of beliefs θ={beliefs}, sim {self.idx}")
         plt.xlabel("Step")
         plt.ylabel("Confidence")
         n = len(self.results.initial_distr)
@@ -304,8 +305,8 @@ class AnalyseSimulation:
         # alpha is transparency of graph lines
         if simid is None:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,0], linewidth=2,  color="black", linestyle='dashed',label="Partisan")
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1:],linewidth = 1, alpha=0.8, label="Agent 2")
-            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3")
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1],linewidth = 1, alpha=0.8, label="Agent 2", color="orange")
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3", color="green")
             # plt.legend()
         else:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color, label = label)
