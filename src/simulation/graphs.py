@@ -2,6 +2,7 @@ from random import choice
 import graph_tool.all as gt
 from numpy.random import uniform
 from typing import Callable
+import numpy as np
 
 edge_generator_type = Callable[[], int]
 
@@ -27,6 +28,37 @@ def draw_graph(g, show_vertex_labels=False, width=150):
                   #   edge_color=edge_colors,
                   edge_text=g.ep.friendliness,
                   output_size=(width, width))
+
+def friendliness_mat(g):
+    # takes roughly 300ms for graph of n=10
+    return gt.adjacency(g, weight=g.ep.friendliness).toarray()
+
+
+def adjacency_mat(g):
+    return gt.adjacency(g).toarray()
+
+
+def graph_shuffle_indices(g: gt.Graph):
+    verts = np.arange(g.num_vertices())
+    # rng = np.random.default_rng(seed=42)
+    # rng.shuffle(verts)
+    np.random.shuffle(verts)
+    A = adjacency_mat(g)
+    A = A[verts][:, verts]  # shuffle the rows and columns
+
+    return graph_from_friendliness_mat(A)
+
+def graph_from_friendliness_mat(A):
+    g = create_model_graph()
+    A = np.tril(A) # only add each edge once, assume an undirected graph
+    g.add_vertex(A.shape[0] - g.num_vertices())
+    edges = np.transpose(np.transpose(A).nonzero())
+    g.add_edge_list(edges)
+    g.ep.friendliness.a = A[A.nonzero()]
+
+    # assert: np.all(friendliness_mat(graph_from_friendliness_mat(A)) == A)
+    # assert: np.all(adjacency_mat(graph_from_friendliness_mat(A)) == A)
+    return g
 
 def create_model_graph(seed_graph: gt.Graph=None) -> gt.Graph:
     g = seed_graph or gt.Graph(directed=False)
@@ -150,9 +182,10 @@ def gen_bba_graph(n: int, m: int, edge_generator: edge_generator_type) -> gt.Gra
     g = gt.price_network(n, m, directed=False)
 
     g = create_model_graph(g)
+    g = graph_shuffle_indices(g)
 
     import numpy as np
-    g.ep.friendliness.a = np.array([edge_generator()] * g.num_edges())
+    g.ep.friendliness.a = np.array([edge_generator() for x in range(g.num_edges())])
     # g.ep.friendliness.a = np.fromfunction(edge_generator, (g.num_edges(),), dtype=float)
     return g
 
@@ -163,6 +196,7 @@ def gen_bba_graph_mixed(n: int, m: int) -> gt.Graph:
     g = gt.price_network(n, m, directed=False)
 
     g = create_model_graph(g)
+    g = graph_shuffle_indices(g)
 
     import numpy as np
     g.ep.friendliness.a = np.random.choice((1, -1), g.num_edges())

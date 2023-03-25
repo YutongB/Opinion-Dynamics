@@ -16,7 +16,8 @@ from rich.progress import (
 from src.analyse.results import SimResults
 
 from src.simulation.initsim import init_simulation
-from src.simulation.sim import adjacency_mat, friendliness_mat, mean_distr, std_distr, step_simulation
+from src.simulation.graphs import adjacency_mat, friendliness_mat
+from src.simulation.sim import mean_distr, std_distr, step_simulation
 
 done_event = Event()
 def handle_sigint(signum, frame):

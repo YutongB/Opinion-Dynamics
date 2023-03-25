@@ -1,7 +1,6 @@
 from functools import cache
 from scipy.stats import norm, binom
 import numpy as np
-from graph_tool.all import adjacency
 
 BIAS_SAMPLES = 21
 
@@ -65,16 +64,6 @@ def std_distr(distrs, mean):
     mean = mean[:, None]
     return np.sqrt(
         np.sum(np.square(bias_mat(n) - mean) * distrs, axis=1))
-
-
-def friendliness_mat(g):
-    # takes roughly 300ms for graph of n=10
-    return adjacency(g, weight=g.ep.friendliness).toarray()
-
-
-def adjacency_mat(g):
-    return adjacency(g).toarray()
-
 
 def avg_dist_in_belief(friendliness, posterior_distr):
     n = friendliness.shape[0]

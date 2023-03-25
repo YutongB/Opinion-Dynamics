@@ -4,9 +4,8 @@ from pprint import pformat
 from src.cli.simulate import parse_prior
 from src.cli.parseargs import parser_handle_graph, parser_handle_ensemble
 from src.analyse.results import dump_json
-from src.simulation.graphs import gen_complete_graph, get_edge_generator
+from src.simulation.graphs import gen_complete_graph, get_edge_generator, adjacency_mat, friendliness_mat
 from src.simulation.initsim import init_simulation
-from src.simulation.sim import adjacency_mat, friendliness_mat
 from src.utils import timestamp
 
 def gen_result(gen_graph, prior):
