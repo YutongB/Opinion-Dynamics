@@ -16,7 +16,7 @@ def flist_to_str(lst: List[float]):
     return ','.join([str(x) for x in lst])
 
 def get_sim_params():
-    num_partisans =1
+    num_partisans =2
     n = 100
     coinslist = None
     # coinslist = make_coin_list(bias=0.6, max_steps=10000)

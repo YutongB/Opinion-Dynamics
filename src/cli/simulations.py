@@ -37,6 +37,8 @@ partisan_sd = 0.01
 asymp_max_iters = 99
 max_steps = 10000
 
+# param_sweep = [(x,) for x in range(1, n)]
+
 ret = {}
 
 def make_coin_list(bias, max_steps, num_coins=1):
@@ -53,25 +55,32 @@ def flist_to_str(lst: list[float]):
 
 # gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
 # This is not working atm : int64 is not JSON serializable
-def dwell_time_all_agents(asymptotic: list[int]) -> list[int]:
+def dwell_time_all_agents(asymptotic: list[int]) -> tuple[list[int], list[int], list[int]]:
     steps = np.array(asymptotic)
     # last index at dwell
     dwell_indices = np.where(np.diff(steps) < 0)[0].tolist()
-    dwell_times = [int(asymptotic[i]) for i in dwell_indices]
     if steps[-1] > 0:
-        dwell_times.append(int(asymptotic[-1]))
-    return dwell_times
+        dwell_indices.append(len(asymptotic) - 1)
+    dwell_times = [int(asymptotic[i]) for i in dwell_indices]
+    return dwell_indices, dwell_times
 
-def dwell_time_per_agent(asymptotic: list[list[int]]) -> list[list[int]]:
+def dwell_time_per_agent(asymptotic: list[list[int]], non_partisans_mean):
     """input: asymptotic - per agent, list of number of steps spent in asymptotic learning at time t
     output: dwell time - per agent, all maxima of asymptotic
     """
-    return [dwell_time_all_agents(agent) for agent in asymptotic]
+    dwells = [dwell_time_all_agents(agent) for agent in asymptotic]
+    return [list(zip(
+            times,
+            # indices used only to query the biases at the time of the dwell
+            non_partisans_mean[indices, agent].tolist() 
+        ))
+    for agent, (indices, times) in enumerate(dwells)]
 
 def dwell_time_per_agent_by_distance_to_partisan(
     graph: Graph, 
     num_partisans: int, 
-    agent_is_asymptotic: list[list[int]]):
+    agent_is_asymptotic: list[list[int]],
+    non_partisans_mean):
 
     # NOTE: the following assumes we do not find shortest path based on negative edge weights
     # this needs to change otherwise!
@@ -83,12 +92,12 @@ def dwell_time_per_agent_by_distance_to_partisan(
     dist = shortest_distance(graph, source=0, weights=graph.ep.friendliness)
     dist_per_node = dist.a.astype(int).tolist()
 
-    dwell = dwell_time_per_agent(agent_is_asymptotic)
+    dwells = dwell_time_per_agent(agent_is_asymptotic, non_partisans_mean)
 
     max_dist = max(dist_per_node)
     dwells_by_distance = [[] for _ in range(max_dist + 1)]
     number_of_agents_by_distance = [0 for _ in range(max_dist + 1)]
-    for dist, dwell in zip(dist_per_node, dwell):
+    for dist, dwell in zip(dist_per_node, dwells):
         dwells_by_distance[dist].extend(dwell)
         number_of_agents_by_distance[dist] += 1
     
@@ -120,7 +129,7 @@ def asymptotic_per_agent(dists):
 def run(params):
     vals, run = params
     num_partisans, = vals
-    m = 20
+    m = 3
     gen_graph = lambda: gen_bba_graph(n, m=m, edge_generator=get_edge_generator("allies"))
 
     frac_partisans = num_partisans / n
@@ -157,6 +166,7 @@ def run(params):
 
     # use mean[num_partisans:] for all non-partisans
     # non_partisans_mean = [mean[num_partisans:].tolist() for mean in sim.mean_list]
+    non_partisans_mean = np.array(sim.mean_list)
 
     """
     agent_t_A = sim.steps - sim.agent_is_asymptotic
@@ -172,8 +182,9 @@ def run(params):
     # out = dict(partisans=round(frac_partisans, 2), mean_t_diff=mean_t_diff, run=run)
     # out = dict(m=m, mean_t_diff=mean_t_diff, run=run)
     """
+    
     asymptotic = asymptotic_per_agent(sim.distrs)
-    res = dwell_time_per_agent_by_distance_to_partisan(graph, num_partisans, asymptotic)
+    res = dwell_time_per_agent_by_distance_to_partisan(graph, num_partisans, asymptotic, non_partisans_mean)
     out = dict(
         r=run, 
         p=round(frac_partisans, 2), 
@@ -242,9 +253,10 @@ def main():
         os.remove(logpath)
     except OSError:
         pass
-
-    param_sweep = [(x,) for x in range(1, n)]
     
+    # sweeping the number of partisans
+    param_sweep = [(x,) for x in [2, 10, 60, 90]]
+
     with make_progress() as progress:
         param_sweep = [(vals, run) for vals in param_sweep for run in range(runs)]
         # if args.threads > 1:

@@ -45,7 +45,7 @@ class AnalyseSimulation:
         # draw the graph, labelling the edge weights by friendliness
         from graph_tool.draw import graph_draw
         edge_color_map = {-1.0: (199/255, 27/255, 0, 1),  # red
-                      1.0: (0, 199/255, 30/255, 1),  # green
+                      1.0: (0, 128/255, 255/255, 1),  # blue
                       0.0: (0, 0, 0, 0)}  # black
         g = self.graph()
         edge_color = g.new_ep('vector<double>')
@@ -53,7 +53,7 @@ class AnalyseSimulation:
             edge_color[e] = edge_color_map[f]
 
         graph_draw(g, vertex_text=g.vertex_index, 
-                    edge_text=g.ep.friendliness,
+                    # edge_text=g.ep.friendliness,
                     edge_color=edge_color)
 
 
@@ -305,8 +305,10 @@ class AnalyseSimulation:
         # alpha is transparency of graph lines
         if simid is None:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,0], linewidth=2,  color="black", linestyle='dashed',label="Partisan")
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1],linewidth = 1, alpha=0.8, label="Agent 2", color="orange")
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3", color="green")
+            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1],linewidth = 1, alpha=0.8, label="Agent 2", color="orange")
+            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3", color="green")
+            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1:],linewidth = 1, alpha=0.8)
+
             # plt.legend()
         else:
             plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color, label = label)
