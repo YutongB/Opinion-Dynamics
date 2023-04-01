@@ -37,7 +37,6 @@ partisan_sd = 0.01
 asymp_max_iters = 99
 max_steps = 10000
 
-# param_sweep = [(x,) for x in range(1, n)]
 
 ret = {}
 
@@ -54,7 +53,6 @@ def flist_to_str(lst: list[float]):
     return ','.join([str(x) for x in lst])
 
 # gen_graph = lambda: gen_complete_graph(n, get_edge_generator("enemies"))
-# This is not working atm : int64 is not JSON serializable
 def dwell_time_all_agents(asymptotic: list[int]) -> tuple[list[int], list[int], list[int]]:
     steps = np.array(asymptotic)
     # last index at dwell
@@ -84,8 +82,10 @@ def dwell_time_per_agent_by_distance_to_partisan(
 
     # NOTE: the following assumes we do not find shortest path based on negative edge weights
     # this needs to change otherwise!
-    for i, u in zip(range(num_partisans), graph.iter_vertices()):
-        for _, v in zip(range(i + 1, num_partisans), graph.iter_vertices()):
+    # for i, u in zip(range(num_partisans), graph.iter_vertices()):
+    #     for _, v in zip(range(i + 1, num_partisans), graph.iter_vertices()):
+    for u in range (num_partisans):
+        for v in range (u+1, num_partisans):
             e = graph.add_edge(u, v)
             graph.ep.friendliness[e] = 0
 
@@ -255,7 +255,8 @@ def main():
         pass
     
     # sweeping the number of partisans
-    param_sweep = [(x,) for x in [2, 10, 60, 90]]
+    # param_sweep = [(x,) for x in [2, 10, 60, 90]]
+    param_sweep = [(x,) for x in range(1, n)] # sweeping the number of partisans
 
     with make_progress() as progress:
         param_sweep = [(vals, run) for vals in param_sweep for run in range(runs)]
