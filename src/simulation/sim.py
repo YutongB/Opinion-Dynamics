@@ -113,7 +113,7 @@ EPSILON = 0
 
 
 def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins=1,
-                    friendliness=None, DWeps=1, coins=None, disruption = 0):
+                    friendliness=None, DWeps=1, coins=None, disruption = []):
     """
     true_bias (θ_0 in the paper)
     learning_rate (μ / μ_i in the paper)
@@ -138,7 +138,7 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
     posterior_distr = normalize_distr(likelihood * prior_distr)  # (eqn 1)
     # Rows: node i's posterior distribution.  Cols: posterior distr evaluated at theta
     # Need to change partisan's belief after cointoss before blending
-    posterior_distr[:disruption] = prior_distr[:disruption]
+    posterior_distr[disruption] = prior_distr[disruption]
 
     # Mix the opinions of each node with respective neighbours (eq 3,4)
     avg_dist_belief = avg_dist_in_belief(
@@ -153,7 +153,7 @@ def step_simulation(g, prior_distr, true_bias=0.5, learning_rate=0.25, num_coins
         np.array([bayes_update_max_LHS, bayes_update_max_RHS]), axis=0)
 
     next_prior_distr = normalize_distr(bayes_update)
-    next_prior_distr[:disruption] = prior_distr[:disruption]
+    next_prior_distr[disruption] = prior_distr[disruption]
     # graph_set_prior_distr(g, next_prior_distr.T)
 
     return coins, next_prior_distr

@@ -48,7 +48,7 @@ def run_simulation(g, max_steps=1e4, asymptotic_learning_max_iters=99,
                    true_bias=0.5, learning_rate=0.25,
                    tosses_per_iteration=1, task_id=None, progress=None,
                    log=None, DWeps=1, coinslist=None,
-                   disruption = 0,
+                   disruption = [],
                    break_on_asymptotic_learning = True,
                    hide_progress_after_complete = True,
                    title="Simulation") -> SimResults:

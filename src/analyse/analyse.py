@@ -41,20 +41,58 @@ class AnalyseSimulation:
     def graph(self):
         return read_graph(self.results.adjacency, self.results.friendliness)
 
+    # def show_graph(self):
+    #     # draw the graph, labelling the edge weights by friendliness
+    #     from graph_tool.draw import graph_draw
+    #     edge_color_map = {-1.0: (199/255, 27/255, 0, 1),  # red
+    #                   1.0: (0, 128/255, 255/255, 1),  # blue
+    #                   0.0: (0, 0, 0, 0)}  # black
+    #     g = self.graph()
+    #     edge_color = g.new_ep('vector<double>')
+    #     for f, e in zip(g.ep.friendliness, g.edges()):
+    #         edge_color[e] = edge_color_map[f]
+
+    #     graph_draw(g, vertex_text=g.vertex_index, 
+    #                 # edge_text=g.ep.friendliness,
+    #                 edge_color=edge_color)
+
+
     def show_graph(self):
-        # draw the graph, labelling the edge weights by friendliness
         from graph_tool.draw import graph_draw
-        edge_color_map = {-1.0: (199/255, 27/255, 0, 1),  # red
-                      1.0: (0, 128/255, 255/255, 1),  # blue
-                      0.0: (0, 0, 0, 0)}  # black
+
+        # Define colors
+        grey_color = (128/255, 128/255, 128/255, 1) # grey
+        black_color = (0, 0, 0, 1) # black
+        white_color = (1, 1, 1, 1) # white
+        transparent_color = (0, 0, 0, 0) # transparent
+
+        # Get graph and vertex count
         g = self.graph()
-        edge_color = g.new_ep('vector<double>')
+        n_vertices = g.num_vertices()
+
+        # Set vertex fill color and outline color based on index
+        vertex_fill_color = g.new_vertex_property('vector<double>')
+        vertex_outline_color = g.new_vertex_property('vector<double>')
+        for i in range(n_vertices):
+            if i == 0:
+                vertex_fill_color[g.vertex(i)] = grey_color
+            else:
+                vertex_fill_color[g.vertex(i)] = white_color
+            vertex_outline_color[g.vertex(i)] = black_color
+
+        # Draw the graph
+        edge_color_map = {-1.0: (199/255, 27/255, 0, 1),  # red
+                        1.0: (0, 128/255, 255/255, 1),  # blue
+                        0.0: (0, 0, 0, 0)}  # black
+        edge_color = g.new_edge_property('vector<double>')
         for f, e in zip(g.ep.friendliness, g.edges()):
             edge_color[e] = edge_color_map[f]
 
-        graph_draw(g, vertex_text=g.vertex_index, 
-                    # edge_text=g.ep.friendliness,
-                    edge_color=edge_color)
+        graph_draw(g, vertex_text=g.vertex_index, vertex_fill_color=vertex_fill_color,
+                vertex_color=vertex_outline_color, edge_color=edge_color)
+
+
+
 
 
     def show_params(self):
@@ -265,7 +303,7 @@ class AnalyseSimulation:
         # alpha is transparency of graph lines
         plt.plot(sim.mean_list[:steps, 0], color="black", linestyle='dashed', linewidth=4,label="Partisan")
         
-        plt.plot(sim.mean_list[:steps, 1:], alpha=0.8, linewidth=1, label="Agent 2")
+        plt.plot(sim.mean_list[:steps, 1:], alpha=1, linewidth=0.5, label="Agent 2")
         # plt.plot(sim.mean_list[:, 2], alpha=0.8, linewidth=1,label="Agent 3")
 
         plt.grid(linestyle='dotted')

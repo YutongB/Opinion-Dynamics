@@ -62,40 +62,51 @@ def dwell_time_all_agents(asymptotic: list[int]) -> tuple[list[int], list[int], 
     dwell_times = [int(asymptotic[i]) for i in dwell_indices]
     return dwell_indices, dwell_times
 
-def dwell_time_per_agent(asymptotic: list[list[int]], non_partisans_mean):
-    """input: asymptotic - per agent, list of number of steps spent in asymptotic learning at time t
-    output: dwell time - per agent, all maxima of asymptotic
+def dwell_time_per_agent_with_means(asymptotic: list[list[int]], mean_list) \
+    -> list[list[tuple[int, float]]]:
+    """
+    for each agent, give a list of its dwell times (time, mean bias at that time)
     """
     dwells = [dwell_time_all_agents(agent) for agent in asymptotic]
     return [list(zip(
             times,
             # indices used only to query the biases at the time of the dwell
-            non_partisans_mean[indices, agent].tolist() 
+            mean_list[indices, agent].tolist() 
         ))
     for agent, (indices, times) in enumerate(dwells)]
+
+def dwell_time_per_agent(asymptotic: list[list[int]]) -> list[list[int]]:
+    """input: asymptotic - per agent, list of number of steps spent in asymptotic learning at time t
+    output: dwell time - per agent, all maxima of asymptotic
+    """
+    return [dwell_time_all_agents(agent)[1] for agent in asymptotic]
 
 def dwell_time_per_agent_by_distance_to_partisan(
     graph: Graph, 
     num_partisans: int, 
     agent_is_asymptotic: list[list[int]],
-    non_partisans_mean):
+    mean_list = None):
 
     # NOTE: the following assumes we do not find shortest path based on negative edge weights
     # this needs to change otherwise!
     # for i, u in zip(range(num_partisans), graph.iter_vertices()):
     #     for _, v in zip(range(i + 1, num_partisans), graph.iter_vertices()):
+    # connect all partisans with each other, 0 cost edge
     for u in range (num_partisans):
         for v in range (u+1, num_partisans):
             e = graph.add_edge(u, v)
             graph.ep.friendliness[e] = 0
 
     dist = shortest_distance(graph, source=0, weights=graph.ep.friendliness)
-    dist_per_node = dist.a.astype(int).tolist()
-
-    dwells = dwell_time_per_agent(agent_is_asymptotic, non_partisans_mean)
+    dist_per_node = dist.a.astype(int).tolist() # type: list[int]
+    
+    if mean_list is None:
+        dwells = dwell_time_per_agent(agent_is_asymptotic)
+    else:
+        dwells = dwell_time_per_agent_with_means(agent_is_asymptotic, mean_list)
 
     max_dist = max(dist_per_node)
-    dwells_by_distance = [[] for _ in range(max_dist + 1)]
+    dwells_by_distance: list[list[tuple[int, float] | int]] = [[] for _ in range(max_dist + 1)]
     number_of_agents_by_distance = [0 for _ in range(max_dist + 1)]
     for dist, dwell in zip(dist_per_node, dwells):
         dwells_by_distance[dist].extend(dwell)
@@ -129,7 +140,7 @@ def asymptotic_per_agent(dists):
 def run(params):
     vals, run = params
     num_partisans, = vals
-    m = 3
+    m = 20
     gen_graph = lambda: gen_bba_graph(n, m=m, edge_generator=get_edge_generator("allies"))
 
     frac_partisans = num_partisans / n
@@ -166,7 +177,6 @@ def run(params):
 
     # use mean[num_partisans:] for all non-partisans
     # non_partisans_mean = [mean[num_partisans:].tolist() for mean in sim.mean_list]
-    non_partisans_mean = np.array(sim.mean_list)
 
     """
     agent_t_A = sim.steps - sim.agent_is_asymptotic
@@ -182,9 +192,12 @@ def run(params):
     # out = dict(partisans=round(frac_partisans, 2), mean_t_diff=mean_t_diff, run=run)
     # out = dict(m=m, mean_t_diff=mean_t_diff, run=run)
     """
+    # mean_list = np.array(sim.mean_list)
     
     asymptotic = asymptotic_per_agent(sim.distrs)
-    res = dwell_time_per_agent_by_distance_to_partisan(graph, num_partisans, asymptotic, non_partisans_mean)
+    res = dwell_time_per_agent_by_distance_to_partisan(graph, num_partisans, asymptotic
+        # , mean_list
+    )
     out = dict(
         r=run, 
         p=round(frac_partisans, 2), 
