@@ -1,0 +1,11 @@
+[project]
+name = "lmbh"
+version = "0.1.0"
+description = "Opinion Dynamics by LMBH"
+requires-python = ">= 3.11"
+authors = [{ name = "Yutong Bu", email = "ybu@student.unimelb.edu.au" }]
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,33 @@
+[workspace]
+authors = ["Yutong Bu <yutongbu@hotmail.com>"]
+channels = ["conda-forge"]
+# NOTE: graph-tool is not available on windows, use WSL
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+preview = ["pixi-build"]
+
+[tasks]
+
+
+[package]
+name = "lmbh"
+version = "0.1.0"
+
+[package.build]
+backend = { name = "pixi-build-python", version = "*" }
+
+[dependencies]
+python = ">=3.10"
+graph-tool = ">=2.97,<3"
+numpy = ">=2.2.6,<3"
+pandas = ">=2.2.3,<3"
+scipy = ">=1.15.2,<2"
+jupyter = ">=1.1.1,<2"
+
+[pypi-dependencies]
+lmbh = { path = ".", editable = true }
+
+[package.host-dependencies] 
+hatchling = "*"
+
+[package.run-dependencies]
+
