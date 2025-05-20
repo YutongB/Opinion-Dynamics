@@ -31,11 +31,11 @@ def show_graph(g, edge_pen_width = 1, edge_property_name = 'friendliness'):
     n_vertices = g.num_vertices()
 
     # Set vertex fill color and outline color based on index
-    # vertex_fill_color = g.new_vertex_property('vector<double>')
-    vertex_fill_color = transparent_color
+    vertex_fill_color = g.new_vertex_property('vector<double>')
+    # vertex_fill_color = transparent_color
     vertex_outline_color = g.new_vertex_property('vector<double>')
     for i in range(n_vertices):
-    #     vertex_fill_color[g.vertex(i)] = white_color
+        vertex_fill_color[g.vertex(i)] = white_color
         vertex_outline_color[g.vertex(i)] = black_color
 
     # Draw the graph

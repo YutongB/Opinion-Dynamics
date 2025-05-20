@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.stats import norm
 
-from src.simulation.stat import bias, bias_mat, normalize_distr
+from src.simulation.stat import normalize_distr
 
 def prior_distr_vec(prior_mean, prior_sd, bias_mat: np.array):
     # ensure norm.pdf behaves (broadcasting - scipy)
