@@ -3,7 +3,7 @@ import json
 import os
 import numpy as np
 
-from src.simulation.graphs import create_model_graph
+from ..simulation.graphs import create_model_graph
 
 ####### Dumping to json #######
 

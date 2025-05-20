@@ -1,7 +1,8 @@
 from typing import Optional
-from src.simulation.graphs import adjacency_mat, friendliness_mat
-from src.simulation.initsim import init_prior_distrs
-from src.simulation.sim import run_simulation, SimParams, AIParams, DEFAULT_MAX_STEPS, LikelihoodGenerator, MaskedAILikelihoodGenerator, DEFAULT_DISCRETISED_BIAS
+from .graphs import adjacency_mat, friendliness_mat
+from .initsim import init_prior_distrs
+from .sim import run_simulation, SimParams, AIParams, DEFAULT_MAX_STEPS, LikelihoodGenerator, DEFAULT_DISCRETISED_BIAS
+from ..utils import UUID, uuid_field
 from graph_tool import Graph
 from functools import cached_property
 from dataclasses import dataclass, field, KW_ONLY
@@ -147,7 +148,6 @@ class GeneratedPriorParams(PriorParams):
             generated_from=prior_params
         )
 
-from src.utils import UUID, uuid_field
 @dataclass
 class Simulation:
     _: KW_ONLY  # this is to avoid confusion, forces the user to use named args
@@ -207,8 +207,7 @@ class Simulation:
 
     @cached_property
     def analyse(self, idx=0):
-        from src.analyse.analyse import AnalyseSimulation, SimResults
-        from src.analyse.results import parse_result
+        from ..analyse import parse_result, AnalyseSimulation, SimResults
 
         return AnalyseSimulation(
             results = parse_result(SimResults(
@@ -249,7 +248,7 @@ class Simulation:
     
     @cached_property
     def asymptotic_per_agent(self) -> np.array:
-        from src.analyse.dwell import asymptotic_per_agent
+        from ..analyse.dwell import asymptotic_per_agent
         return asymptotic_per_agent(self.result.distrs)
 
     @cached_property

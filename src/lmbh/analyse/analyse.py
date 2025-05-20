@@ -4,13 +4,12 @@ from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
 import graph_tool as gt 
-import plotly.express as px
 import math
 
-from src.analyse.results import SimResults, read_graph, read_results, dump_json
-from src.simulation.stat import bias
-from src.simulation.graphs import show_graph
-from src.utils import timestamp
+from .results import SimResults, read_graph, read_results, dump_json
+from ..simulation.stat import bias
+from ..simulation.graphs import show_graph
+from ..utils import timestamp
 
 def indexof_belief(belief, bias):
     try:
@@ -334,6 +333,8 @@ class AnalyseSimulation:
     """
 
     def plotly_distr(self, steps=None, opacity=1, BIAS_SAMPLES = 21):
+        import plotly.express as px
+
         theta = np.linspace(0, 1, BIAS_SAMPLES)
         if steps is None:
             steps = range(self.results.distrs.shape[0])
@@ -353,6 +354,8 @@ class AnalyseSimulation:
         fig.show()
 
     def plotly_distr_frame(self, step, opacity=1, BIAS_SAMPLES = 21):
+        import plotly.express as px
+
         theta = np.linspace(0, 1, BIAS_SAMPLES)
 
         df = pd.DataFrame([(v, theta[i], node, step) 

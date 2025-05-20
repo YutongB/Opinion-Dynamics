@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field, KW_ONLY, asdict
+from dataclasses import dataclass, field, KW_ONLY
 from functools import cached_property
 import numpy as np
 from scipy.stats import binom, norm
 
-from src.simulation.stat import normalize_distr
-from src.analyse.results import SimResults
+from .stat import normalize_distr
+from ..analyse import SimResults
 
 DEFAULT_MAX_STEPS = 10000
 DEFAULT_DISCRETISED_BIAS = np.linspace(0, 1, 21)
