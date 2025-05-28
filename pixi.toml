@@ -23,6 +23,7 @@ pandas = ">=2.2.3,<3"
 scipy = ">=1.15.2,<2"
 jupyter = ">=1.1.1,<2"
 plotly = ">=6.1.2,<7"
+gif = ">=23.3.0,<24"
 
 [pypi-dependencies]
 lmbh = { path = ".", editable = true }
