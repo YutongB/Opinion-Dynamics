@@ -31,8 +31,11 @@ We use the packages `scipy numpy graph_tool matplotlib pandas jupyter`
 
 ## Papers
 Model : https://arxiv.org/abs/2112.10160
+
 Intermittency : https://arxiv.org/abs/2207.00372
+
 Disruption by partisans : https://arxiv.org/abs/2307.16359
+
 Analytic condition : https://arxiv.org/abs/2505.06959
 
 ## Contact 
