@@ -27,3 +27,18 @@ conda env create -f environment.yml
 
 ### Manual installation
 We use the packages `scipy numpy graph_tool matplotlib pandas jupyter`
+
+
+## Papers
+Model : https://arxiv.org/abs/2112.10160
+Intermittency : https://arxiv.org/abs/2207.00372
+Disruption by partisans : https://arxiv.org/abs/2307.16359
+Analytic condition : https://arxiv.org/abs/2505.06959
+
+## Contact 
+If you have any questions about our work, setting up the code, or wish to reach out, please contact me at : buy1@student.unimelb.edu.au
+
+
+
+
+
