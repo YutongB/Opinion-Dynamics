@@ -556,8 +556,3 @@ def frac_asymptotic_system(ensemble: List[SimResults], asymp_max_iters: int):
     return frac_asymptotic
 
 
-
-
-
-# def powerlaw_fit(x, y, xmin=None, xmax=None, **kwargs):
-#     popt, pcov = curve_fit(powerlaw_func, x[:20], y[:20], p0=[5000, 0.5, 0], bounds=([1,.05, -2000], [10000, 5, 2000]))
