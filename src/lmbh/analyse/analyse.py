@@ -42,7 +42,7 @@ class AnalyseSimulation:
         return read_graph(self.results.adjacency, self.results.friendliness)
 
     def show_graph(self):
-        show_graph(self.graph())
+        show_graph(self.graph(), partisans=self.disruption)
 
     def show_params(self):
         print("sim params ------")
@@ -108,7 +108,7 @@ class AnalyseSimulation:
         return dwell_time
     
 
-    def plot_dwell_time(self, bins = 'auto', log = True, label = None):
+    def plot_dwell_time(self, bins = 100, log = True, label = None):
         plt.hist(self.dwell_time(), bins = bins, weights = np.ones_like(self.dwell_time())/len(self.dwell_time()), density = False, log = log, histtype="step", alpha = 1,label = label, stacked= True)
         plt.xlabel("$ t_{\\rm d}$")
         plt.ylabel("Normalized Number")
@@ -248,21 +248,21 @@ class AnalyseSimulation:
     '''
     Ploting system statistics 
     '''
-    def plot_all_mean(self, steps=10000-1):
+    def plot_all_mean(self):
         sim = self.results
-        # alpha is transparency of graph lines
-        # plt.plot(sim.mean_list[:steps, 0], color="black", linestyle='dashed', linewidth=4,label="Partisan")
-        
-        plt.plot(sim.mean_list[:, :], alpha=1, linewidth=0.5)
-        # plt.plot(sim.mean_list[:, 2], alpha=0.8, linewidth=1,label="Agent 3")
+        n = len(self.results.initial_distr)
+        for i in range(n):
+            if i in self.disruption:
+                plt.plot(sim.mean_list[:, i], color="black", linestyle='dashed', linewidth=4,label="Partisan")
+            else:
+                plt.plot(sim.mean_list[:, i], linewidth=0.5, label=f"Agent {i}")
 
         plt.grid(linestyle='dotted')
 
         # plt.title(f"Mean/Iter, sim {self.idx}")
         plt.xlabel("Timesteps")
         plt.ylabel("$ \\langle \\theta\\rangle $")
-        n = len(self.results.initial_distr)
-        # plt.legend()
+        plt.legend()
 
     def plot_agent_mean(self, agent_id, steps=10000-1,linewidth = 0.5, color=None, linestyle = '-', alpha = 1, label=None):
         sim = self.results
@@ -270,19 +270,6 @@ class AnalyseSimulation:
         plt.grid(linestyle='dotted')
         plt.xlabel("Timesteps")
         plt.ylabel("$ \\langle \\theta\\rangle $")
-
-    def plot_non_partisan_mean(self,  LINEWIDTH= 0.5, ALPHA = 0.5, LABLE = None):
-        sim = self.results
-        # alpha is transparency of graph lines
-        if LABLE == None: 
-            plt.plot(sim.mean_list[:,-1], linewidth=LINEWIDTH, alpha=ALPHA)
-        else: 
-            plt.plot(sim.mean_list[:,-1], linewidth=LINEWIDTH, alpha=ALPHA, label = LABLE)
-            
-        plt.xlabel("Timesteps")
-        # plt.title("Mean belief of one non-partisan agent")
-        plt.ylabel("$\\langle \\theta \\rangle$")
-
 
     def plot_std(self):
         sim = self.results
@@ -295,18 +282,17 @@ class AnalyseSimulation:
         # plt.legend(range(n))
 
 
-    def plot_distr(self, step, title=None, simid=None, color=None, label = label, BIAS_SAMPLES = 21):
+    def plot_distr(self, step, title=None, color=None, label = label):
         sim = self.results
-        # alpha is transparency of graph lines
-        if simid is None:
-            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,0], linewidth=2,  color="black", linestyle='dashed',label="Partisan")
-            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,1],linewidth = 1, alpha=0.8, label="Agent 2", color="orange")
-            # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:,2],linewidth = 1, alpha=0.8, label="Agent 3", color="green")
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,linewidth = 1, alpha=0.8)
+        n = len(self.results.initial_distr)
+        for i in range(n):
+            if i in self.disruption:
+                plt.plot(sim.distrs[step].T[:, i], color="black", linestyle='dashed', linewidth=2, label="Partisan")
+            else:
+                plt.plot(sim.distrs[step].T[:, i], linewidth=0.5, label=f"Agent {i}")
 
-            # plt.legend()
-        else:
-            plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step][simid].T, linewidth=1, color = color, label = label)
+        # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth = 1, alpha=0.8)
+
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T,marker='x')
 
         if title is None:
@@ -315,8 +301,7 @@ class AnalyseSimulation:
         # plt.title(f"{title}, sim {self.idx}")
         plt.xlabel("$\\theta$")
         plt.ylabel("Probability")
-        n = len(self.results.initial_distr)
-        # plt.legend(range(n))
+        plt.legend()
 
     def get_max_belief(self, agent_id, BIAS_SAMPLES = 21, step_from = 0):
         sim = self.results
@@ -325,8 +310,6 @@ class AnalyseSimulation:
             index = np.argmax(sim.distrs[step][agent_id])
             max_belief.append(np.linspace(0, 1, BIAS_SAMPLES)[index])
         return max_belief
-
-
 
     """
     Plotly slider plot
@@ -340,15 +323,14 @@ class AnalyseSimulation:
             steps = range(self.results.distrs.shape[0])
         steps = list(steps)
 
-
         df = pd.DataFrame([(v, theta[i], node, steps[step]) 
                             for step, ds in enumerate(self.results.distrs[steps])
                             for node, row in enumerate(ds) 
                             for i, v in enumerate(row)], 
-                    columns=["y", 'theta', 'node', 'step'])
+                    columns=["probability", 'theta', 'agent', 'step'])
 
-        fig = px.line(df, x="theta", y="y", animation_frame="step", 
-                    color="node", hover_name="node",
+        fig = px.line(df, x="theta", y="probability", animation_frame="step", 
+                    color="agent", hover_name="agent",
                 )
         fig.update_traces(opacity=opacity)
         fig.show()
@@ -378,7 +360,10 @@ class AnalyseSimulation:
 
             plt.figure()
             for node, group in df.groupby('node'):
-                plt.plot(group['theta'], group['y'], label=f'Node {node}', alpha=opacity)
+                if node in self.disruption:
+                    plt.plot(group['theta'], group['y'], label='Partisan', alpha=opacity, color='black', linestyle='dashed', linewidth=2)
+                else:
+                    plt.plot(group['theta'], group['y'], label=f'Node {node}', alpha=opacity)
 
             plt.title(f"Belief distribution at step {step}")
             plt.xlabel('$\\theta$')

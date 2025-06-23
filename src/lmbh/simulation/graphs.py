@@ -18,7 +18,7 @@ def get_edge_generator(edges: str) -> edge_generator_type:
     
     raise NotImplementedError("Invalid edge type")
 
-def show_graph(g, edge_pen_width = 1, edge_property_name = 'friendliness'):
+def show_graph(g, edge_pen_width = 1, edge_property_name = 'friendliness', partisans = []):
     from graph_tool.draw import graph_draw
 
     # Define colors
@@ -35,7 +35,7 @@ def show_graph(g, edge_pen_width = 1, edge_property_name = 'friendliness'):
     # vertex_fill_color = transparent_color
     vertex_outline_color = g.new_vertex_property('vector<double>')
     for i in range(n_vertices):
-        vertex_fill_color[g.vertex(i)] = white_color
+        vertex_fill_color[g.vertex(i)] = grey_color if i in partisans else white_color
         vertex_outline_color[g.vertex(i)] = black_color
 
     # Draw the graph
