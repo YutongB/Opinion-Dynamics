@@ -353,27 +353,44 @@ class AnalyseSimulation:
         fig.update_traces(opacity=opacity)
         fig.show()
 
-    def plotly_distr_frame(self, step, opacity=1, BIAS_SAMPLES = 21):
-        import plotly.express as px
-
-        theta = np.linspace(0, 1, BIAS_SAMPLES)
-
-        df = pd.DataFrame([(v, theta[i], node, step) 
-                            for node, row in enumerate(self.results.distrs[step]) 
-                            for i, v in enumerate(row)], 
-                    columns=["y", 'theta', 'node', 'step'])
-
-        fig = px.line(df, x="theta", y="y", color="node", title=f"Belief distribution at step {step}")
-        fig.update_traces(opacity=opacity)
-        return fig
-
-    def plotly_distr_gif(self):
+    def gif_distr(self, path, last_step = None, legend = True):
+        """ 
+        Create a gif of the belief distribution over time using plotly
+        last step: if None, use all steps, otherwise use up to last_step (inclusive)
+        all steps may be slow 
+        """
         import gif
-        num_steps = self.results.distrs.shape[0]
-        frames = [gif.frame(self.plotly_distr_frame)(step) for step in range(num_steps)]
-        fname = 'plots/' + get_clean_last_results_fname() + '.gif'
+        if last_step is None:
+            num_steps = self.results.distrs.shape[0]
+        else:
+            num_steps = last_step + 1
 
-        gif.save(frames, fname, duration=1, unit = 's', between="startend")
+        opacity=1
+        BIAS_SAMPLES = 21
+        @gif.frame
+        def plot(step):
+            theta = np.linspace(0, 1, BIAS_SAMPLES)
+
+            df = pd.DataFrame([(v, theta[i], node, step) 
+                                for node, row in enumerate(self.results.distrs[step]) 
+                                for i, v in enumerate(row)], 
+                        columns=["y", 'theta', 'node', 'step'])
+
+            plt.figure()
+            for node, group in df.groupby('node'):
+                plt.plot(group['theta'], group['y'], label=f'Node {node}', alpha=opacity)
+
+            plt.title(f"Belief distribution at step {step}")
+            plt.xlabel('$\\theta$')
+            plt.ylabel('Probability')
+            plt.xlim(0, 1)
+            plt.ylim(0, 1)
+            if legend:
+                plt.legend()
+            plt.tight_layout()
+    
+        frames = [plot(step) for step in range(num_steps)]
+        gif.save(frames, path, duration=1)
 
     def plot_initial_distr(self):
         self.plot_distr(0, "Initial distribution")
@@ -500,22 +517,6 @@ def plot_scatter(data, xlabel= None, ylabel = None, title =  None, fit=True, log
 Write result into file
 Putting last result into folder for easier access
 '''
-
-def analyse_results(filename):
-    out = read_results(filename)
-    sim_params, args = out['sim_params'], out['args']
-    return [AnalyseSimulation(res, args, sim_params, i) for i, res in enumerate(out['results'])]
-
-def analyse_last_results():
-    return analyse_results(get_last_results_fname())
-
-def get_last_results_fname():
-    with open("output/last_results", 'r') as f:
-        return f.read()
-
-def get_clean_last_results_fname():
-    return get_last_results_fname().split('/')[-1].split('.')[0]
-
 
 def frac_simulation_asymptotic(results):
     ensemble_t_A = [sim.results.steps if sim.asymptotic else -1 for sim in results]
