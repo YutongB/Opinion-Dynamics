@@ -282,14 +282,14 @@ class AnalyseSimulation:
         # plt.legend(range(n))
 
 
-    def plot_distr(self, step, title=None, color=None, label = label):
+    def plot_distr(self, step, title=None, color=None, BIAS_SAMPLES = 21, label = label):
         sim = self.results
         n = len(self.results.initial_distr)
         for i in range(n):
             if i in self.disruption:
-                plt.plot(sim.distrs[step].T[:, i], color="black", linestyle='dashed', linewidth=2, label="Partisan")
+                plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:, i], color="black", linestyle='dashed', linewidth=2, label="Partisan")
             else:
-                plt.plot(sim.distrs[step].T[:, i], linewidth=0.5, label=f"Agent {i}")
+                plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T[:, i], linewidth=0.5, label=f"Agent {i}")
 
         # plt.plot(np.linspace(0, 1, BIAS_SAMPLES), sim.distrs[step].T, linewidth = 1, alpha=0.8)
 
