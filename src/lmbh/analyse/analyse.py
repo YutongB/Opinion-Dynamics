@@ -231,9 +231,9 @@ class AnalyseSimulation:
         plt.xlabel("Step")
         plt.ylabel("Confidence")
 
-    def plot_confidence_in_beliefs_and_sum(self, beliefs: List[float], opacity=.8):
+    def plot_confidence_in_beliefs_and_sum(self, beliefs: List[float], opacity=.8, agent=-1):
         for belief in beliefs:
-            distr = self.calc_confidence_in_belief([belief])[:, -1, :]
+            distr = self.calc_confidence_in_belief([belief])[:, agent, :]
             plt.plot(distr, alpha=opacity, label = f"$\\theta = {belief}$",  linewidth = 0.9)
         n = len(self.results.initial_distr)
         plt.plot(np.sum(np.sum(self.calc_confidence_in_belief(beliefs), axis=2), axis=1) / n, alpha=opacity, label = "Sum" , linewidth = 1)
