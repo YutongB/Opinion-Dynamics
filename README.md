@@ -20,6 +20,9 @@ In the repo folder, run `pixi install`. That should install everything for this 
 
 Test that installation works by opening `demo.ipynb`.  You can use `pixi shell`, then `jupyter notebook` to open the notebook.  Exit the pixi shell with `exit`.  Or, use [Visual Studio Code's Jupyter extension](https://code.visualstudio.com/docs/datascience/jupyter-notebooks) by running `code .`.  In vscode's Jupyter interface, select the "default" conda environment created by pixi.  It will take ~15 seconds to load the `lmbh` library for the first time, as importing the graph-tool library for the first time requires some installation to happen behind the scenes.
 
+## Web App
+We made an web application for this simulation, it does not do everything that the code is able to do, but it can run simple simulation and basic analysis. 
+Simulation Editor web application: https://opinion-workshop.vercel.app
 
 ## Papers
 1. "Discerning media bias within a network of political allies and opponents: The idealized example of a biased coin", Nicholas Kah Yean Low, Andrew Melatos. [Physica A](https://www.sciencedirect.com/science/article/abs/pii/S037843712100933X) [arXiv](https://arxiv.org/abs/2112.10160)
