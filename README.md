@@ -33,5 +33,7 @@ Simulation Editor web application: https://opinion-workshop.vercel.app
 
 4. "Discerning media bias within a network of political allies: an analytic condition for disruption by partisans", Jarra Horstman, Andrew Melatos, Farhad Farokhi. [Physica A](https://www.sciencedirect.com/science/article/abs/pii/S0378437125003310) [arXiv](https://arxiv.org/abs/2505.06959)
 
+5. "How trust networks shape students' opinions about the proficiency of artificially intelligent assistants", Yutong Bu, Andrew Melatos, Robin Evans. [arXiv](https://arxiv.org/abs/2506.19655)
+
 ## Contact 
 If you have any questions about our work, setting up the code, or wish to reach out to the group, please contact Yutong Bu at buy1@student.unimelb.edu.au
